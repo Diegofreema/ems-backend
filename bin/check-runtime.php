@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use Cake\Datasource\ConnectionManager;
 use Pdo\Mysql as PdoMysql;
 
 $caPath = getenv('DATABASE_SSL_CA') ?: '/etc/secrets/ca.pem';
@@ -98,5 +99,45 @@ try {
         ));
     }
 
+    exit(1);
+}
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/config/bootstrap.php';
+
+$cakeConnection = ConnectionManager::get('default');
+$cakeConfig = $cakeConnection->getDriver()->config();
+$rawUsername = rawurldecode($database['user']);
+$rawPassword = rawurldecode($database['pass']);
+$cakeUsername = (string)($cakeConfig['username'] ?? '');
+$cakePassword = (string)($cakeConfig['password'] ?? '');
+fwrite(STDOUT, sprintf(
+    '[runtime] CakePHP database config host_match=%s port_match=%s database_match=%s '
+        . "username_match=%s password_match=%s ca=%s verify=%s app_local=%s\n",
+    ($cakeConfig['host'] ?? null) === $database['host'] ? 'yes' : 'no',
+    (int)($cakeConfig['port'] ?? 0) === (int)$database['port'] ? 'yes' : 'no',
+    ($cakeConfig['database'] ?? null) === ltrim($database['path'], '/') ? 'yes' : 'no',
+    hash_equals(
+        hash('sha256', $rawUsername),
+        hash('sha256', $cakeUsername),
+    ) ? 'yes' : 'no',
+    hash_equals(
+        hash('sha256', $rawPassword),
+        hash('sha256', $cakePassword),
+    ) ? 'yes' : 'no',
+    (string)($cakeConfig['flags'][$sslCaAttribute] ?? 'missing'),
+    ($cakeConfig['flags'][$verifyAttribute] ?? null) === true ? 'true' : 'missing_or_false',
+    is_file(dirname(__DIR__) . '/config/app_local.php') ? 'present' : 'absent',
+));
+
+try {
+    $cakeConnection->execute('SELECT 1');
+    fwrite(STDOUT, "[runtime] CakePHP MySQL TLS connection ready\n");
+} catch (Throwable $cakeError) {
+    fwrite(STDERR, sprintf(
+        "[runtime] CakePHP MySQL TLS probe failed: %s: %s\n",
+        get_class($cakeError),
+        $cakeError->getMessage(),
+    ));
     exit(1);
 }

@@ -16,6 +16,7 @@ use App\Ems\ViewerResolver;
 use Cake\Controller\Controller;
 use Cake\Core\Configure;
 use Cake\Datasource\EntityInterface;
+use Cake\Datasource\ConnectionManager;
 use Cake\Http\Exception\HttpException;
 use Cake\Http\Response;
 use Closure;
@@ -244,6 +245,30 @@ class AppController extends Controller
                 $this->request->getRequestTarget(),
                 get_class($e),
                 $e->getMessage()
+            ));
+            $databaseConfig = ConnectionManager::getConfig('default');
+            $databaseUrl = (string)getenv('DATABASE_URL');
+            $databaseParts = $databaseUrl !== '' ? parse_url($databaseUrl) : [];
+            if ($databaseParts === false) {
+                $databaseParts = [];
+            }
+            $sslCa = (string)getenv('DATABASE_SSL_CA');
+            error_log(sprintf(
+                '[EMS request %s] database runtime host_match=%s port_match=%s database_match=%s username_match=%s password_match=%s ssl_ca=%s ca_readable=%s',
+                $requestId,
+                ($databaseConfig['host'] ?? null) === ($databaseParts['host'] ?? null) ? 'yes' : 'no',
+                (int)($databaseConfig['port'] ?? 0) === (int)($databaseParts['port'] ?? 0) ? 'yes' : 'no',
+                ($databaseConfig['database'] ?? null) === ltrim((string)($databaseParts['path'] ?? ''), '/') ? 'yes' : 'no',
+                hash_equals(
+                    hash('sha256', rawurldecode((string)($databaseParts['user'] ?? ''))),
+                    hash('sha256', (string)($databaseConfig['username'] ?? ''))
+                ) ? 'yes' : 'no',
+                hash_equals(
+                    hash('sha256', rawurldecode((string)($databaseParts['pass'] ?? ''))),
+                    hash('sha256', (string)($databaseConfig['password'] ?? ''))
+                ) ? 'yes' : 'no',
+                $sslCa !== '' ? $sslCa : 'missing',
+                $sslCa !== '' && is_readable($sslCa) ? 'yes' : 'no'
             ));
             $message = Configure::read('debug')
                 ? $e->getMessage()
