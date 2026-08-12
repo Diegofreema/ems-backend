@@ -1,0 +1,19 @@
+/*
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+*/
+/* 
+    Created on : 04-Feb-2021, 14:50:33
+    Author     : Chukwudi
+*/
+//added by CHUKD : 04/02/2021
+   lback {
+  background-image: url("../img/image5.jpg"); /* The image used */
+  background-color: #cccccc; /* Used if the image is unavailable */
+  height: 670px; /* You must set a specified height */
+  background-position: center; /* Center the image */
+  background-repeat: no-repeat; /* Do not repeat the image */
+  background-size: cover; /* Resize the background image to cover the entire container */
+}
+

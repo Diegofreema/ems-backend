@@ -1,0 +1,69 @@
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: #330165;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8f9fa;
+}
+
+.login-container {
+  display: flex;
+  height: 100vh;
+}
+
+.left-panel {
+  background-color: #330165;
+  color: white;
+  padding: 3rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.left-panel h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.left-panel p {
+  font-size: 1rem;
+  margin-bottom: 2rem;
+  max-width: 350px;
+}
+
+.left-panel img {
+  max-width: 100%;
+  height: auto;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #330165;
+  box-shadow: none;
+}
+
+.btn-primary {
+  background-color: #330165;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: #330165;
+}
+
+@media (max-width: 767.98px) {
+  .left-panel {
+    display: none;
+  }
+}

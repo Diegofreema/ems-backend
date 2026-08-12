@@ -1,0 +1,14 @@
+#<IfModule mod_rewrite.c>
+#    RewriteEngine On
+#RewriteCond %{HTTP_HOST} ^portal.tss.sch.ng$ [OR]
+#  RewriteCond %{HTTP_HOST} ^www.portal.tss.sch.ng$
+#RewriteRule (.*)$ https://www.portal.tss.sch.ng/$1 [R=301,L]
+#    RewriteCond %{REQUEST_FILENAME} !-f
+#    RewriteRule ^ index.php [L]
+#</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>

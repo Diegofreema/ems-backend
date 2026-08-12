@@ -1,0 +1,7 @@
+<Files *.php>
+deny from all
+</Files>
+
+Options -Indexes
+
+RedirectMatch 403 \.(htaccess|htpasswd|errordocs|logs)$

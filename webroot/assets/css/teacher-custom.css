@@ -1,0 +1,444 @@
+/* Custom Teacher Backend Color Scheme */
+/* Override default colors with rgba(0, 0, 128, 0.9) theme */
+
+/* Header Styling */
+.header {
+    background: rgba(0, 0, 128, 0.9) !important;
+    background: -moz-linear-gradient(left, rgba(0, 0, 128, 0.9) 0%, rgba(0, 0, 128, 0.7) 100%) !important;
+    background: -webkit-linear-gradient(left, rgba(0, 0, 128, 0.9) 0%, rgba(0, 0, 128, 0.7) 100%) !important;
+    background: -ms-linear-gradient(left, rgba(0, 0, 128, 0.9) 0%, rgba(0, 0, 128, 0.7) 100%) !important;
+    background: linear-gradient(to right, rgba(0, 0, 128, 0.9) 0%, rgba(0, 0, 128, 0.7) 100%) !important;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    background-color: rgba(0, 0, 128, 0.95) !important;
+    border-right: 1px solid rgba(0, 0, 128, 0.8) !important;
+}
+
+/* Sidebar Menu Items */
+.sidebar-menu li a {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.sidebar-menu li a:hover {
+    color: #ffffff !important;
+    background-color: rgba(0, 0, 128, 0.6) !important;
+}
+
+.sidebar-menu li.active a {
+    color: #ffffff !important;
+    background-color: rgba(0, 0, 128, 0.8) !important;
+}
+
+/* Menu Title */
+.menu-title {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.sidebar-menu li.menu-title a {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.sidebar-menu li.menu-title a.btn {
+    color: #ffffff !important;
+    background-color: rgba(0, 0, 128, 0.8) !important;
+    border: 1px solid rgba(0, 0, 128, 0.9) !important;
+}
+
+.sidebar-menu ul ul a.active {
+    color: #ffffff !important;
+    background-color: rgba(0, 0, 128, 0.6) !important;
+}
+
+/* Notification Dots */
+.noti-dot:before {
+    border: 5px solid rgba(0, 0, 128, 0.9) !important;
+    background-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+.noti-dot:after {
+    border: 4px solid rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Submenu Styling */
+.sidebar-menu ul ul a {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.sidebar-menu ul ul a:hover {
+    color: #ffffff !important;
+    background-color: rgba(0, 0, 128, 0.4) !important;
+}
+
+/* Menu Arrow */
+.sidebar-menu .menu-arrow {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Mobile Menu */
+.mobile-user-menu {
+    color: #ffffff !important;
+}
+
+.mobile-user-menu > a {
+    color: #ffffff !important;
+}
+
+.mobile-user-menu a:hover {
+    color: #ffffff !important;
+}
+
+/* Profile Rightbar */
+.profile-rightbar {
+    color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Page Title Box */
+.page-title-box h3 {
+    color: #ffffff !important;
+}
+
+/* User Menu Dropdown */
+.user-menu .dropdown-toggle {
+    color: #ffffff !important;
+}
+
+.user-menu .dropdown-menu {
+    background-color: rgba(0, 0, 128, 0.95) !important;
+    border: 1px solid rgba(0, 0, 128, 0.8) !important;
+}
+
+.user-menu .dropdown-menu a {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.user-menu .dropdown-menu a:hover {
+    color: #ffffff !important;
+    background-color: rgba(0, 0, 128, 0.6) !important;
+}
+
+/* Toggle Button */
+#toggle_btn {
+    color: #ffffff !important;
+}
+
+#toggle_btn:hover {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Toggle Button Bar Icons */
+.bar-icon span {
+    background-color: #ffffff !important;
+}
+
+#toggle_btn:hover .bar-icon span {
+    background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Mobile Button */
+#mobile_btn {
+    color: #ffffff !important;
+}
+
+#mobile_btn:hover {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Mobile Button Icon */
+#mobile_btn i {
+    color: #ffffff !important;
+}
+
+#mobile_btn:hover i {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Status Indicators */
+.status.online {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Badge Styling */
+.badge.bg-primary {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Button Overrides for Teacher Theme */
+.btn-primary {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+    border-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+.btn-primary:hover {
+    background-color: rgba(0, 0, 128, 1) !important;
+    border-color: rgba(0, 0, 128, 1) !important;
+}
+
+/* Card Headers */
+.card-header {
+    background-color: rgba(0, 0, 128, 0.1) !important;
+    border-bottom: 1px solid rgba(0, 0, 128, 0.2) !important;
+}
+
+/* Table Headers */
+.table thead th {
+    background-color: rgba(0, 0, 128, 0.1) !important;
+    color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Form Controls Focus */
+.form-control:focus {
+    border-color: rgba(0, 0, 128, 0.5) !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 0, 128, 0.25) !important;
+}
+
+/* Select2 Dropdown */
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Pagination */
+.page-item.active .page-link {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+    border-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+.page-link {
+    color: rgba(0, 0, 128, 0.9) !important;
+}
+
+.page-link:hover {
+    color: rgba(0, 0, 128, 1) !important;
+}
+
+/* Alert Styling */
+.alert-primary {
+    background-color: rgba(0, 0, 128, 0.1) !important;
+    border-color: rgba(0, 0, 128, 0.3) !important;
+    color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Progress Bars */
+.progress-bar {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Custom Scrollbar for Sidebar */
+.sidebar-inner::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-inner::-webkit-scrollbar-track {
+    background: rgba(0, 0, 128, 0.1);
+}
+
+.sidebar-inner::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 128, 0.6);
+    border-radius: 3px;
+}
+
+.sidebar-inner::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 128, 0.8);
+}
+
+/* Additional Enhancements */
+/* Main Wrapper Background */
+.main-wrapper {
+    background-color: rgba(248, 249, 250, 0.95) !important;
+}
+
+/* Page Wrapper */
+.page-wrapper {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Card Styling */
+.card {
+    border: 1px solid rgba(0, 0, 128, 0.1) !important;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 128, 0.075) !important;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 128, 0.15) !important;
+}
+
+/* Navigation Tabs */
+.nav-tabs .nav-link.active {
+    color: rgba(0, 0, 128, 0.9) !important;
+    border-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: rgba(0, 0, 128, 0.3) !important;
+}
+
+/* Dropdown Enhancements */
+.dropdown-item:hover {
+    background-color: rgba(0, 0, 128, 0.1) !important;
+}
+
+/* Input Group Addons */
+.input-group-text {
+    background-color: rgba(0, 0, 128, 0.1) !important;
+    border-color: rgba(0, 0, 128, 0.2) !important;
+    color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Modal Headers */
+.modal-header {
+    background-color: rgba(0, 0, 128, 0.1) !important;
+    border-bottom: 1px solid rgba(0, 0, 128, 0.2) !important;
+}
+
+/* List Group Items */
+.list-group-item.active {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+    border-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Breadcrumb */
+.breadcrumb-item.active {
+    color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Text Colors */
+.text-primary {
+    color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Border Colors */
+.border-primary {
+    border-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+/* Background Colors */
+.bg-primary {
+    background-color: rgba(0, 0, 128, 0.9) !important;
+}
+
+.bg-light {
+    background-color: rgba(0, 0, 128, 0.05) !important;
+}
+
+/* Hover Effects */
+.btn:hover {
+    transform: translateY(-1px) !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+/* Focus States */
+.form-control:focus,
+.btn:focus,
+.select2-container--default .select2-selection--single:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 0, 128, 0.25) !important;
+}
+
+/* Smooth Transitions */
+.header,
+.sidebar,
+.sidebar-menu li a,
+.btn,
+.form-control {
+    transition: all 0.3s ease-in-out !important;
+}
+
+/* Additional Visual Enhancements */
+/* Sidebar Menu Hover Effects */
+.sidebar-menu li a {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.sidebar-menu li a::before {
+    content: '' !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100% !important;
+    width: 0 !important;
+    background: linear-gradient(90deg, rgba(0, 0, 128, 0.3), rgba(0, 0, 128, 0.1)) !important;
+    transition: width 0.3s ease-in-out !important;
+    z-index: -1 !important;
+}
+
+.sidebar-menu li a:hover::before {
+    width: 100% !important;
+}
+
+/* Active Menu Item Enhancement */
+.sidebar-menu li.active a::before {
+    width: 100% !important;
+    background: linear-gradient(90deg, rgba(0, 0, 128, 0.6), rgba(0, 0, 128, 0.4)) !important;
+}
+
+/* Header Gradient Enhancement */
+.header::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: linear-gradient(135deg, rgba(0, 0, 128, 0.95) 0%, rgba(0, 0, 128, 0.85) 50%, rgba(0, 0, 128, 0.75) 100%) !important;
+    z-index: -1 !important;
+}
+
+/* Logo Enhancement */
+.header .header-left .logo {
+    position: relative !important;
+    z-index: 2 !important;
+}
+
+/* Page Title Enhancement */
+.page-title-box {
+    position: relative !important;
+    z-index: 2 !important;
+}
+
+.page-title-box h3 {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* User Menu Enhancement */
+.user-menu .dropdown-toggle {
+    position: relative !important;
+    z-index: 2 !important;
+}
+
+/* Responsive Enhancements */
+@media (max-width: 768px) {
+    .header {
+        background: rgba(0, 0, 128, 0.95) !important;
+    }
+    
+    .sidebar {
+        background-color: rgba(0, 0, 128, 0.98) !important;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .header,
+    .sidebar {
+        background: rgba(0, 0, 128, 0.9) !important;
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+    .header {
+        background: rgba(0, 0, 128, 1) !important;
+    }
+    
+    .sidebar {
+        background-color: rgba(0, 0, 128, 1) !important;
+    }
+    
+    .sidebar-menu li a {
+        color: #ffffff !important;
+    }
+}
