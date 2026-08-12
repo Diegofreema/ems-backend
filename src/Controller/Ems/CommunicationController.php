@@ -346,7 +346,14 @@ class CommunicationController extends AppController
                                 $row['status'] = 'suppressed';
                                 $row['suppressed_reason'] = $consent['reason'];
                             } else {
-                                $outcome = $comms->attemptDelivery($recipientId, 1);
+                                $outcome = $comms->attemptDelivery(
+                                    $recipientId,
+                                    1,
+                                    $channel,
+                                    $member['address'],
+                                    (string)$announcement->title,
+                                    (string)$announcement->body,
+                                );
                                 $row['status'] = $outcome['ok'] ? 'sent' : 'failed';
                                 $row['attempts'] = 1;
                                 $row['provider_ref'] = $outcome['ref'];
@@ -387,7 +394,7 @@ class CommunicationController extends AppController
     /** POST /announcements/{id}/delivery/retry — failures with attempts < 3. */
     public function retry(string $id): Response
     {
-        $this->findAnnouncement($id);
+        $announcement = $this->findAnnouncement($id);
         $recipients = $this->fetchTable('EmsMessageRecipients');
         $rows = $this->tenant()->query('EmsMessageRecipients')
             ->where(['announcement_id' => $id])->all()->toList();
@@ -399,10 +406,22 @@ class CommunicationController extends AppController
             $this->fail(422, Messages::DELIVER_NOTHING_TO_RETRY);
         }
         $comms = $this->comms();
+        $audience = $comms->resolveAudience((string)$announcement->audience, (string)$rows[0]->channel);
+        $addresses = [];
+        foreach ($audience as $member) {
+            $addresses[$member['personId']] = $member['address'];
+        }
         $today = FrozenDate::today()->format('Y-m-d');
         foreach ($retriable as $row) {
             $attempt = (int)$row->attempts + 1;
-            $outcome = $comms->attemptDelivery((string)$row->id, $attempt);
+            $outcome = $comms->attemptDelivery(
+                (string)$row->id,
+                $attempt,
+                (string)$row->channel,
+                (string)($addresses[(string)$row->person_id] ?? ''),
+                (string)$announcement->title,
+                (string)$announcement->body,
+            );
             $row->attempts = $attempt;
             $row->updated_on = $today;
             if ($outcome['ok']) {
@@ -551,7 +570,14 @@ class CommunicationController extends AppController
                     if ($member['address'] === '') {
                         $row['suppressed_reason'] = 'No ' . ($channel === 'email' ? 'email address' : 'phone number') . ' on file';
                     } else {
-                        $outcome = $comms->attemptDelivery($recipientId, 1);
+                        $outcome = $comms->attemptDelivery(
+                            $recipientId,
+                            1,
+                            $channel,
+                            $member['address'],
+                            $message['subject'],
+                            $message['body'],
+                        );
                         $row['status'] = $outcome['ok'] ? 'sent' : 'failed';
                         $row['attempts'] = 1;
                         $row['provider_ref'] = $outcome['ref'];

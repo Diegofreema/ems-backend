@@ -111,4 +111,16 @@ class AuthThrottleTest extends EmsIntegrationTestCase
             $this->rowExists('ems_password_resets', ['id' => $resetId, 'used_at IS NOT' => null]),
         );
     }
+
+    public function testResetRequestDeliversAndStoresARecoverableCode(): void
+    {
+        $this->post('/api/ems/auth/reset/request', ['email' => 'ada@test.school']);
+
+        $this->assertResponseOk();
+        $this->assertSame(['sent' => true], $this->responseJson());
+        $this->assertTrue($this->rowExists('ems_password_resets', [
+            'user_id' => $this->adminId,
+            'used_at IS' => null,
+        ]));
+    }
 }

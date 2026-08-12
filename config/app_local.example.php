@@ -137,11 +137,12 @@ return [
      */
     'EmailTransport' => [
         'default' => [
-            'host' => 'localhost',
-            'port' => 25,
-            'username' => null,
-            'password' => null,
+            'host' => 'smtp.resend.com',
+            'port' => 587,
+            'username' => 'resend',
+            'password' => env('RESEND_API_KEY'),
             'client' => null,
+            'tls' => true,
             'url' => env('EMAIL_TRANSPORT_DEFAULT_URL', null),
         ],
     ],

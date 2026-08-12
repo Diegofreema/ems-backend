@@ -17,6 +17,8 @@ use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 use Cake\Log\Log;
+use Cake\Mailer\Mailer;
+use Throwable;
 
 /**
  * Tenant-less auth endpoints (document.md §3.18). Every action is public;
@@ -203,13 +205,34 @@ class AuthController extends AppController
             if ($user !== null && $user->status !== 'disabled') {
                 $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
                 $resets = $this->fetchTable('EmsPasswordResets');
-                $resets->saveOrFail($resets->newEntity([
+                $reset = $resets->saveOrFail($resets->newEntity([
                     'user_id' => $user->id,
                     'code' => $code,
                     'expires_at' => FrozenTime::now()->addMinutes(30),
                 ]));
-                // Delivered out of band in production. Logged for local testing.
-                Log::info(sprintf('EMS password reset code for %s: %s', $email, $code));
+                try {
+                    $school = $this->fetchTable('EmsSchools')->get($user->school_id);
+                    $body = sprintf(
+                        "Hello %s,\n\nYour password reset code for %s is:\n\n%s\n\n"
+                            . "This code expires in 30 minutes and works only once.\n\n"
+                            . "If you did not request this, you can ignore this message.\n",
+                        (string)$user->name,
+                        (string)$school->name,
+                        $code,
+                    );
+                    (new Mailer('default'))
+                        ->setTo((string)$user->email)
+                        ->setSubject(sprintf('Reset your %s EMS password', (string)$school->name))
+                        ->setEmailFormat('text')
+                        ->deliver($body);
+                } catch (Throwable $e) {
+                    $resets->delete($reset);
+                    Log::error(sprintf(
+                        'EMS password reset delivery failed for user %s: %s',
+                        (string)$user->id,
+                        $e->getMessage(),
+                    ));
+                }
             }
         }
 

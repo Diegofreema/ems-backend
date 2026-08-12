@@ -4,7 +4,10 @@ declare(strict_types=1);
 namespace App\Ems;
 
 use Cake\Datasource\EntityInterface;
+use Cake\Log\Log;
+use Cake\Mailer\Mailer;
 use Cake\ORM\Locator\LocatorInterface;
+use Throwable;
 
 /**
  * The Communication engine (document.md §3.20). One place resolves an audience,
@@ -218,13 +221,43 @@ class Comms
     }
 
     /**
-     * The gateway stand-in — deterministic in the attempt, so a retry is a
-     * genuine second try. Replicates the mock's rolling 32-bit hash exactly.
+     * Deliver e-mail through the configured provider; keep SMS simulated until a provider exists.
      *
      * @return array{ok:bool,reason:?string,ref:?string}
      */
-    public function attemptDelivery(string $recipientId, int $attempt): array
-    {
+    public function attemptDelivery(
+        string $recipientId,
+        int $attempt,
+        string $channel,
+        string $address,
+        string $subject,
+        string $body,
+    ): array {
+        if ($channel === 'email') {
+            try {
+                (new Mailer('default'))
+                    ->setTo($address)
+                    ->setSubject($subject)
+                    ->setEmailFormat('text')
+                    ->deliver($body);
+
+                return [
+                    'ok' => true,
+                    'reason' => null,
+                    'ref' => 'EMAIL-' . strtoupper(substr($recipientId, 0, 8)),
+                ];
+            } catch (Throwable $e) {
+                Log::error(sprintf(
+                    'EMS email delivery failed for recipient %s on attempt %d: %s',
+                    $recipientId,
+                    $attempt,
+                    $e->getMessage(),
+                ));
+
+                return ['ok' => false, 'reason' => 'Email provider rejected the message', 'ref' => null];
+            }
+        }
+
         $key = $recipientId . '#' . $attempt;
         $h = 0;
         $len = strlen($key);
