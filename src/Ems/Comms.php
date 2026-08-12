@@ -5,7 +5,6 @@ namespace App\Ems;
 
 use Cake\Datasource\EntityInterface;
 use Cake\Log\Log;
-use Cake\Mailer\Mailer;
 use Cake\ORM\Locator\LocatorInterface;
 use Throwable;
 
@@ -235,11 +234,7 @@ class Comms
     ): array {
         if ($channel === 'email') {
             try {
-                (new Mailer('default'))
-                    ->setTo($address)
-                    ->setSubject($subject)
-                    ->setEmailFormat('text')
-                    ->deliver($body);
+                Resend::deliver($address, $subject, $body);
 
                 return [
                     'ok' => true,

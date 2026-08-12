@@ -8,6 +8,7 @@ use App\Ems\Invitations;
 use App\Ems\Messages;
 use App\Ems\RefreshDenied;
 use App\Ems\RefreshTokens;
+use App\Ems\Resend;
 use App\Ems\Serializer\SettingsSerializer;
 use App\Ems\SubjectCatalog;
 use Cake\Core\Configure;
@@ -17,7 +18,6 @@ use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 use Cake\Log\Log;
-use Cake\Mailer\Mailer;
 use Throwable;
 
 /**
@@ -220,11 +220,11 @@ class AuthController extends AppController
                         (string)$school->name,
                         $code,
                     );
-                    (new Mailer('default'))
-                        ->setTo((string)$user->email)
-                        ->setSubject(sprintf('Reset your %s EMS password', (string)$school->name))
-                        ->setEmailFormat('text')
-                        ->deliver($body);
+                    Resend::deliver(
+                        (string)$user->email,
+                        sprintf('Reset your %s EMS password', (string)$school->name),
+                        $body,
+                    );
                 } catch (Throwable $e) {
                     $resets->delete($reset);
                     Log::error(sprintf(

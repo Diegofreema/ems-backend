@@ -82,6 +82,7 @@ final class Messages
 
     // --- Settings / users (§3.14) -----------------------------------------
     public const LAST_ADMIN = 'A school needs at least one active administrator.';
+    public const SELF_ROLE_CHANGE_FORBIDDEN = 'Administrators cannot change their own role.';
     public const INVITE_ONLY_PENDING = 'Only a pending invitation can be revoked.';
     public const USER_NOT_FOUND = 'That account could not be found.';
     public const USER_ROLE_INVALID = 'Choose a valid account role.';

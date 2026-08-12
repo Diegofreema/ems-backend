@@ -6,7 +6,6 @@ namespace App\Ems;
 use Cake\Core\Configure;
 use Cake\Datasource\EntityInterface;
 use Cake\I18n\FrozenTime;
-use Cake\Mailer\Mailer;
 use Cake\ORM\Table;
 
 final class Invitations
@@ -58,11 +57,11 @@ final class Invitations
             $url
         );
 
-        (new Mailer('default'))
-            ->setTo((string)$user->email)
-            ->setSubject(sprintf('Join %s on EMS', (string)$school->name))
-            ->setEmailFormat('text')
-            ->deliver($body);
+        Resend::deliver(
+            (string)$user->email,
+            sprintf('Join %s on EMS', (string)$school->name),
+            $body,
+        );
     }
 
     /** Static utility class. */

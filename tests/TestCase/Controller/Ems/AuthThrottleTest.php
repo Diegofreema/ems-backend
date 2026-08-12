@@ -5,6 +5,8 @@ namespace App\Test\TestCase\Controller\Ems;
 
 use App\Ems\Messages;
 use Cake\Cache\Cache;
+use Cake\Core\Configure;
+use Cake\Http\TestSuite\HttpClientTrait;
 use Cake\I18n\FrozenTime;
 use Cake\Utility\Text;
 
@@ -15,10 +17,14 @@ use Cake\Utility\Text;
  */
 class AuthThrottleTest extends EmsIntegrationTestCase
 {
+    use HttpClientTrait;
+
     protected function setUp(): void
     {
         parent::setUp();
         Cache::clear(); // each test starts with empty throttle counters
+        Configure::write('Ems.resendApiKey', 'test-resend-key');
+        Configure::write('Ems.emailFrom', 'EMS <noreply@test.school>');
     }
 
     protected function tearDown(): void
@@ -114,6 +120,11 @@ class AuthThrottleTest extends EmsIntegrationTestCase
 
     public function testResetRequestDeliversAndStoresARecoverableCode(): void
     {
+        $this->mockClientPost(
+            'https://api.resend.com/emails',
+            $this->newClientResponse(200, ['Content-Type: application/json'], '{"id":"message-1"}'),
+        );
+
         $this->post('/api/ems/auth/reset/request', ['email' => 'ada@test.school']);
 
         $this->assertResponseOk();

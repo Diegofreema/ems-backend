@@ -95,13 +95,16 @@ class UsersController extends AppController
     }
 
     /**
-     * PUT /users/{id}/role — last-administrator guard (§3.14).
+     * PUT /users/{id}/role — administrators may change other staff roles only.
      */
     public function updateRole(string $id): Response
     {
         $users = $this->fetchTable('EmsUsers');
         $user = $this->findUser($id);
         $role = (string)($this->body()['role'] ?? '');
+        if ($user->id === $this->viewer->userId) {
+            $this->fail(403, Messages::SELF_ROLE_CHANGE_FORBIDDEN);
+        }
         $staffRoles = ['administrator', 'registrar', 'bursar', 'teacher'];
         if (!in_array($role, $staffRoles, true) || in_array((string)$user->role, ['parent', 'student'], true)) {
             $this->fail(422, Messages::USER_ROLE_INVALID);

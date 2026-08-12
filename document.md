@@ -1186,7 +1186,7 @@ type InviteUserInput = { name: string; email: string; role: Role; link?: PersonL
 | `PUT /school` | `SchoolProfileInput` | `School` | Trims fields; logo tri-state as typed. |
 | `GET /users` | `page`, `pageSize` | `Paginated<SchoolUser>` | Active → invited → disabled, then name. **Project away credentials** (the mock leaks them; the backend must not). |
 | `POST /users/invite` | `InviteUserInput` | `SchoolUser` | Validates the role and its tenant-scoped `PersonLink`. Creates status `invited`, stores only a SHA-256 hash of an ambiguity-free `XXXX-XXXX` code, expires it after 48 hours, and emails the one-time `/join?code=...` link. The raw code is never returned by the API. A delivery failure removes the pending account and returns 503. |
-| `PUT /users/:id/role` | `{ role }` | `SchoolUser` | **Last-administrator guard**: demoting the last active administrator → 422 "A school needs at least one active administrator." |
+| `PUT /users/:id/role` | `{ role }` | `SchoolUser` | Administrator-only; an administrator may change **other** staff accounts but can never change their own role (403). **Last-administrator guard**: demoting the last active administrator → 422 "A school needs at least one active administrator." |
 | `PUT /users/:id/link` | `{ link: PersonLink \| null }` | `SchoolUser` | Administrator-only. Replaces or clears a parent/student link after tenant, role, enrolment, and duplicate-account checks. Teacher links must target an active teacher in the school. |
 | `PUT /users/:id/status` | `{ status: 'active' \| 'disabled' }` | `SchoolUser` | Same guard when disabling the last active administrator. |
 | `DELETE /users/:id/invite` | — | `void` | 422 "Only a pending invitation can be revoked." Removes the row. |

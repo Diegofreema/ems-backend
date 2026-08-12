@@ -39,6 +39,19 @@ class PolicyEnforcementTest extends EmsIntegrationTestCase
         $this->assertFalse($this->rowExists('ems_users', ['email' => 'mal@test.school']));
     }
 
+    public function testNonAdministratorCannotChangeAnotherUsersRole(): void
+    {
+        $otherId = Text::uuid();
+        $this->ensureUser('teacher', $otherId, 'Tunde Teacher');
+        $this->authAsParent();
+
+        $this->put($this->schoolPath('/users/' . $otherId . '/role'), ['role' => 'bursar']);
+
+        $this->assertResponseCode(403);
+        $this->assertSame(Messages::ACTION_FORBIDDEN, $this->responseJson()['message']);
+        $this->assertTrue($this->rowExists('ems_users', ['id' => $otherId, 'role' => 'teacher']));
+    }
+
     public function testParentCannotEditAStudentRecord(): void
     {
         $this->authAsParent();
@@ -91,5 +104,32 @@ class PolicyEnforcementTest extends EmsIntegrationTestCase
 
         $this->assertResponseOk();
         $this->assertTrue($this->rowExists('ems_users', ['email' => 'new.teacher@test.school']));
+    }
+
+    public function testAdministratorCannotChangeTheirOwnRole(): void
+    {
+        $this->authAsAdmin();
+
+        $this->put($this->schoolPath('/users/' . $this->adminId . '/role'), ['role' => 'teacher']);
+
+        $this->assertResponseCode(403);
+        $this->assertSame(Messages::SELF_ROLE_CHANGE_FORBIDDEN, $this->responseJson()['message']);
+        $this->assertTrue($this->rowExists('ems_users', [
+            'id' => $this->adminId,
+            'role' => 'administrator',
+        ]));
+    }
+
+    public function testAdministratorCanStillChangeAnotherUsersRole(): void
+    {
+        $otherId = Text::uuid();
+        $this->ensureUser('teacher', $otherId, 'Tunde Teacher');
+        $this->authAsAdmin();
+
+        $this->put($this->schoolPath('/users/' . $otherId . '/role'), ['role' => 'bursar']);
+
+        $this->assertResponseOk();
+        $this->assertSame('bursar', $this->responseJson()['role']);
+        $this->assertTrue($this->rowExists('ems_users', ['id' => $otherId, 'role' => 'bursar']));
     }
 }
