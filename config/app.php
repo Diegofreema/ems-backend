@@ -6,6 +6,7 @@ use Cake\Database\Driver\Mysql;
 use Cake\Error\Renderer\WebExceptionRenderer;
 use Cake\Log\Engine\FileLog;
 use Cake\Mailer\Transport\SmtpTransport;
+use Pdo\Mysql as PdoMysql;
 use function Cake\Core\env;
 
 return [
@@ -313,7 +314,12 @@ return [
              * then you MUST use the `flags` config to set your charset encoding.
              * For e.g. `'flags' => [\PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8mb4']`
              */
-            'flags' => [],
+            'flags' => env('DATABASE_SSL_CA') ? [
+                PHP_VERSION_ID < 80400 ? PDO::MYSQL_ATTR_SSL_CA : PdoMysql::ATTR_SSL_CA => env('DATABASE_SSL_CA'),
+                PHP_VERSION_ID < 80400
+                    ? PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT
+                    : PdoMysql::ATTR_SSL_VERIFY_SERVER_CERT => true,
+            ] : [],
             'cacheMetadata' => true,
             'log' => false,
 

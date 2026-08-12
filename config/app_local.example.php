@@ -1,6 +1,7 @@
 <?php
 
 use function Cake\Core\env;
+use Pdo\Mysql as PdoMysql;
 
 /*
  * Local configuration file to provide any overrides to your app.php configuration.
@@ -106,6 +107,12 @@ return [
              * You can use a DSN string to set the entire configuration
              */
             'url' => env('DATABASE_URL', null),
+            'flags' => env('DATABASE_SSL_CA') ? [
+                PHP_VERSION_ID < 80400 ? PDO::MYSQL_ATTR_SSL_CA : PdoMysql::ATTR_SSL_CA => env('DATABASE_SSL_CA'),
+                PHP_VERSION_ID < 80400
+                    ? PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT
+                    : PdoMysql::ATTR_SSL_VERIFY_SERVER_CERT => true,
+            ] : [],
         ],
 
         /*
