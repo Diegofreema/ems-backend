@@ -9,6 +9,13 @@ use Cake\Mailer\Transport\SmtpTransport;
 use Pdo\Mysql as PdoMysql;
 use function Cake\Core\env;
 
+$databaseUrl = (string)env('DATABASE_URL', '');
+$databaseParts = $databaseUrl !== '' ? parse_url($databaseUrl) : [];
+if ($databaseParts === false) {
+    $databaseParts = [];
+}
+$databaseSslCa = (string)env('DATABASE_SSL_CA', '');
+
 return [
     /*
      * Debug Level:
@@ -300,7 +307,11 @@ return [
         'default' => [
             'className' => Connection::class,
             'driver' => Mysql::class,
-            'url' => env('DATABASE_URL', null),
+            'host' => $databaseParts['host'] ?? 'localhost',
+            'port' => isset($databaseParts['port']) ? (int)$databaseParts['port'] : 3306,
+            'username' => isset($databaseParts['user']) ? rawurldecode($databaseParts['user']) : 'root',
+            'password' => isset($databaseParts['pass']) ? rawurldecode($databaseParts['pass']) : '',
+            'database' => isset($databaseParts['path']) ? ltrim($databaseParts['path'], '/') : 'tss',
             'persistent' => false,
             'timezone' => 'UTC',
 
@@ -314,8 +325,8 @@ return [
              * then you MUST use the `flags` config to set your charset encoding.
              * For e.g. `'flags' => [\PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8mb4']`
              */
-            'flags' => env('DATABASE_SSL_CA') ? [
-                PHP_VERSION_ID < 80400 ? PDO::MYSQL_ATTR_SSL_CA : PdoMysql::ATTR_SSL_CA => env('DATABASE_SSL_CA'),
+            'flags' => $databaseSslCa !== '' ? [
+                PHP_VERSION_ID < 80400 ? PDO::MYSQL_ATTR_SSL_CA : PdoMysql::ATTR_SSL_CA => $databaseSslCa,
                 PHP_VERSION_ID < 80400
                     ? PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT
                     : PdoMysql::ATTR_SSL_VERIFY_SERVER_CERT => true,
