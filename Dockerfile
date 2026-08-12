@@ -1,17 +1,6 @@
-FROM composer:2 AS composer
-
-WORKDIR /app
-
-COPY composer.json composer.lock ./
-
-RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --prefer-dist \
-    --optimize-autoloader \
-    --no-scripts
-
 FROM php:8.4-apache
+
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -32,8 +21,16 @@ RUN apt-get update \
 
 WORKDIR /var/www/html
 
+COPY composer.json composer.lock ./
+
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader \
+    --no-scripts
+
 COPY . .
-COPY --from=composer /app/vendor ./vendor
 
 RUN sed -ri \
         's!/var/www/html!/var/www/html/webroot!g' \
