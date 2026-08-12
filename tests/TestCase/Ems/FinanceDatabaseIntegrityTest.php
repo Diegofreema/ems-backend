@@ -14,7 +14,14 @@ final class FinanceDatabaseIntegrityTest extends EmsDbTestCase
             $this->assertStringContainsString("SIGNAL SQLSTATE '45000'", $row['ACTION_STATEMENT']);
             $guarded[$row['EVENT_OBJECT_TABLE']][$row['EVENT_MANIPULATION']] = true;
         }
-        foreach (['ems_payments','ems_receipts','ems_finance_ledger_events','ems_finance_evidence','ems_finance_decisions','ems_audit_events'] as $table) {
+        foreach ([
+            'ems_payments', 'ems_receipts', 'ems_finance_ledger_events',
+            'ems_finance_evidence', 'ems_finance_decisions', 'ems_audit_events',
+            'ems_payment_submissions', 'ems_finance_adjustment_requests',
+            'ems_finance_adjustment_payouts', 'ems_bank_statement_batches',
+            'ems_bank_statement_rows', 'ems_fee_plan_versions',
+            'ems_invoice_change_requests', 'ems_invoice_events', 'ems_cash_batches',
+        ] as $table) {
             $this->assertTrue($guarded[$table]['UPDATE'] ?? false, $table . ' update guard');
             $this->assertTrue($guarded[$table]['DELETE'] ?? false, $table . ' delete guard');
         }

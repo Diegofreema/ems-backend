@@ -102,6 +102,38 @@ final class OfflinePaymentsTest extends EmsIntegrationTestCase
         $this->assertResponseCode(410);
     }
 
+    public function testRefundPayoutNeedsASecondAdministrator(): void
+    {
+        $this->ensureUser('bursar', $this->bursarId, 'Bola Bursar');
+        $paymentId = Text::uuid();
+        $requestId = Text::uuid();
+        $this->db->insert('ems_payments', [
+            'id' => $paymentId, 'school_id' => $this->schoolId,
+            'invoice_id' => $this->invoiceId, 'student_id' => $this->studentId,
+            'receipt_number' => 'TES/RCP/PAYOUT', 'amount' => 10000, 'method' => 'bank_transfer',
+            'paid_on' => date('Y-m-d'), 'state' => 'completed', 'provenance' => 'test',
+        ]);
+        $this->db->insert('ems_finance_adjustment_requests', [
+            'id' => $requestId, 'school_id' => $this->schoolId, 'payment_id' => $paymentId,
+            'invoice_id' => $this->invoiceId, 'student_id' => $this->studentId,
+            'kind' => 'refund', 'amount' => 10000, 'reason' => 'Overpayment',
+            'requested_by_user_id' => $this->bursarId, 'requested_by_name' => 'Bola Bursar',
+            'created' => $this->now(),
+        ]);
+        $this->db->insert('ems_finance_decisions', [
+            'id' => Text::uuid(), 'school_id' => $this->schoolId, 'request_type' => 'adjustment',
+            'request_id' => $requestId, 'decision' => 'approved', 'reason' => 'Approved',
+            'requested_by_user_id' => $this->bursarId, 'decided_by_user_id' => $this->adminId,
+            'decided_by_name' => 'Ada Admin', 'decided_at' => $this->now(),
+        ]);
+
+        $this->authFinance('administrator', $this->adminId, 'Ada Admin', 'same-admin-payout');
+        $this->post($this->schoolPath('/finance-adjustments/' . $requestId . '/payout-confirmation'), []);
+
+        $this->assertResponseCode(403);
+        $this->assertSame('A different administrator must confirm the refund payout.', $this->responseJson()['message']);
+    }
+
     public function testMatchedTransferEvidenceCanBeReviewedAndApproved(): void
     {
         $this->ensureUser('bursar', $this->bursarId, 'Bola Bursar');

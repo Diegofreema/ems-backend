@@ -501,7 +501,7 @@ class SparentsController extends AppController
                 ]),
             ]),
             CURLOPT_HTTPHEADER => [
-                "authorization: Bearer sk_test_02417f044c8402c28651bdbf63c95109662c4014",
+                "authorization: Bearer " . getenv('LEGACY_PAYSTACK_SECRET_KEY'),
                 "content-type: application/json",
                 "cache-control: no-cache"
             ],
@@ -509,7 +509,7 @@ class SparentsController extends AppController
 
         $response = curl_exec($curl);
         $err = curl_error($curl);
-        //sk_test_3643e4d436f451b2818fc018700c09bf94dba11a
+        // Legacy payment key removed.
         // debug(json_encode( $response, JSON_PRETTY_PRINT));exit;
 
         if ($err) {
@@ -537,12 +537,12 @@ class SparentsController extends AppController
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => [
                 "accept: application/json",
-                "authorization: Bearer sk_test_02417f044c8402c28651bdbf63c95109662c4014",
+                "authorization: Bearer " . getenv('LEGACY_PAYSTACK_SECRET_KEY'),
                 "cache-control: no-cache"
             ],
         ));
 
-        //sk_live_65b10dd930c5c67ca10d7d832211d10d40ed40e5 
+        // Legacy payment key removed.
 
 
         $response = curl_exec($curl);

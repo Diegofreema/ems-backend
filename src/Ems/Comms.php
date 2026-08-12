@@ -66,6 +66,9 @@ class Comms
     /** @var \App\Ems\Tenant|null */
     private $tenantScope;
 
+    /** @var string|null */
+    private $schoolName;
+
     public function __construct(LocatorInterface $locator, string $schoolId, string $today)
     {
         $this->locator = $locator;
@@ -231,10 +234,20 @@ class Comms
         string $address,
         string $subject,
         string $body,
+        string $recipientName = '',
+        ?string $aboutStudentName = null,
     ): array {
         if ($channel === 'email') {
             try {
-                Resend::deliver($address, $subject, $body);
+                $school = $this->schoolName();
+                $message = Email::update(
+                    $school,
+                    $recipientName === '' ? 'there' : $recipientName,
+                    $aboutStudentName,
+                    $subject,
+                    $body,
+                );
+                Resend::deliver($address, $subject . ' | ' . $school, $message['text'], $message['html']);
 
                 return [
                     'ok' => true,
@@ -264,6 +277,16 @@ class Comms
         }
 
         return ['ok' => true, 'reason' => null, 'ref' => 'MSG-' . substr(strtoupper($this->base36($h)), 0, 8)];
+    }
+
+    /** Resolve the current tenant's name once for branded mail. */
+    private function schoolName(): string
+    {
+        if ($this->schoolName === null) {
+            $this->schoolName = (string)$this->locator->get('EmsSchools')->get($this->schoolId)->name;
+        }
+
+        return $this->schoolName;
     }
 
     /** @param array<int, \Cake\Datasource\EntityInterface> $rows */

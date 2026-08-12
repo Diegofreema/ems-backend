@@ -353,6 +353,8 @@ class CommunicationController extends AppController
                                     $member['address'],
                                     (string)$announcement->title,
                                     (string)$announcement->body,
+                                    $member['personName'],
+                                    $member['aboutStudentName'],
                                 );
                                 $row['status'] = $outcome['ok'] ? 'sent' : 'failed';
                                 $row['attempts'] = 1;
@@ -421,6 +423,8 @@ class CommunicationController extends AppController
                 (string)($addresses[(string)$row->person_id] ?? ''),
                 (string)$announcement->title,
                 (string)$announcement->body,
+                (string)$row->person_name,
+                $row->about_student_name === null ? null : (string)$row->about_student_name,
             );
             $row->attempts = $attempt;
             $row->updated_on = $today;
@@ -577,6 +581,8 @@ class CommunicationController extends AppController
                             $member['address'],
                             $message['subject'],
                             $message['body'],
+                            $member['personName'],
+                            $member['aboutStudentName'],
                         );
                         $row['status'] = $outcome['ok'] ? 'sent' : 'failed';
                         $row['attempts'] = 1;

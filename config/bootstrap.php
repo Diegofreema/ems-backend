@@ -210,20 +210,20 @@ define('REGNOPREFIX', 'TSS');
 define('MCC', 'chukwudi.aniegboka@netpro.africa');
 
 //MACK KEY FOR INTERSWITCH WEB PAYMENT - test
-define('MACKEY', 'CEF793CBBE838AA0CBB29B74D571113B4EA6586D3BA77E7CFA0B95E278364EFC4526ED7BD255A366CDDE11F1F607F0F844B09D93B16F7CFE87563B2272007AB3');
+define('MACKEY', (string)getenv('LEGACY_INTERSWITCH_TEST_MAC_KEY'));
 //interswitch gatway url for webpay direct
 //define('GATEWAYURL', 'https://sandbox.interswitchng.com/webpay/pay');
-define('MERCHANTREF', '8113');  // for bank branch live
+define('MERCHANTREF', (string)getenv('LEGACY_INTERSWITCH_MERCHANT_REF'));  // for bank branch live
 define('PAYMENT_ITEM_ID', 101);
 define('PRODUCT_ID', 6207);
 define('SERVICE_CHARGE', 0.9839);
 
 
 //live keys - interswitch webpay
-define('MACKEY_LIVE', 'IYRV99qLXtFbW08NrHCZUipbcD3ogOUo5IV8bCXhrv1d1Pzrz1hP3jNmRtB1nkk4XZo93UcWRkqqJFNYqHVixxfy2GxgIZBucyfPb7ldoS04kX0ZMvTpM2ZtQsoyHIGV');
+define('MACKEY_LIVE', (string)getenv('LEGACY_INTERSWITCH_LIVE_MAC_KEY'));
 //interswitch gatway url for webpay direct
 define('GATEWAYURL_LIVE', 'https://newwebpay.interswitchng.com/collections/w/pay');
-define('MERCHANTREF_LIVE', '8013');
+define('MERCHANTREF_LIVE', (string)getenv('LEGACY_INTERSWITCH_LIVE_MERCHANT_REF'));
 define('PAYMENT_ITEM_ID_LIVE', 3586044);
 define('PRODUCT_ID_LIVE', 22143500);
 define('SERVICE_CHARGE_LIVE', 0.9839);
@@ -240,9 +240,9 @@ define('WEST_FEES', 173100); //minus ict fee 10500
 //added by chukd on 01/11/2024 - Remita constatnts
 //added by chukd - 26/02/2024
 //Remita constants definitions -
-define("MERCHANTID", "15132515218"); //test 2547916  
+define("MERCHANTID", (string)getenv('LEGACY_REMITA_MERCHANT_ID'));
 define("SERVICETYPEID", "13306448158"); //test 4430731
-define("APIKEY", "4MM4WQ55"); //  test key 1946
+define("APIKEY", (string)getenv('LEGACY_REMITA_API_KEY'));
 define("GATEWAYURL", "https://login.remita.net/remita/exapp/api/v1/send/api/echannelsvc/merchant/api/paymentinit");
 //define("GATEWAYURL", "https://login.remita.net/remita/exapp/api/v1/send/api/echannelsvc/merchant/api/paymentinit");
 //define("GATEWAYRRRPAYMENTURL", "https://remitademo.net/remita/ecomm/finalize.reg");
@@ -252,8 +252,7 @@ define("CHECKSTATUSURL", "https://login.remita.net/remita/exapp/api/v1/send/api/
 $requestHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $requestScript = $_SERVER['PHP_SELF'] ?? '/';
 define("PATH", 'http://' . $requestHost . dirname($requestScript));
-define('PUBLIC_KEY', 'RzAwMDA0MDI1NTF8ODMyMTc5MDU1OXxjY2Y5MjYyOGI3ZjZkODc2NzNiZTM2OWIxMmM5NmZkN2JjNGUwNTc4Y2FiNTgwYjViN2IxODQ1N2MwNTJmNWQ5YzEzODIwY2E0Y2E5N2FjOTFmZTczMGUyOTI0NWM4N2JiMDU5NGIzNGY1NTFkYWI0NWExMTJkODY1NWNiMzljNQ==
-');
+define('PUBLIC_KEY', (string)getenv('LEGACY_REMITA_PUBLIC_KEY'));
 
 //remita test keys
 define("TESTMERCHANTID", 2547916); //test 2547916  
@@ -265,12 +264,12 @@ define("TESTGATEWAYURL", "https://demo.remita.net/remita/exapp/api/v1/send/api/e
 
 
 //details for eTransact Credo payment
-define('CREDOPUBKEY', '1PUB3352FEPg70yc7vlLXS5r46hiWarxTl2680');
-define('PUBKEYDEMO','0PRI0214x8QLukyy5A02dW76mRW78kHM');
+define('CREDOPUBKEY', (string)getenv('LEGACY_CREDO_PUBLIC_KEY'));
+define('PUBKEYDEMO', (string)getenv('LEGACY_CREDO_DEMO_KEY'));
 define('CREDOLIVEURL','https://api.credocentral.com/transaction/initialize');
 define('DEMOURL','https://api.credodemo.com');
 define('CREDOVERYURL','https://api.credocentral.com/transaction/');
-define('SECRETEKEY','1PRI3352Lj5uHSA5IgukdY988hU63k81iB34dL');
+define('SECRETEKEY', (string)getenv('LEGACY_CREDO_SECRET_KEY'));
 
 
 /*

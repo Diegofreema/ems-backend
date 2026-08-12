@@ -46,21 +46,18 @@ final class Invitations
     {
         $base = rtrim((string)Configure::read('Ems.frontendBaseUrl', 'http://localhost:5173'), '/');
         $url = $base . '/join?code=' . rawurlencode($rawCode);
-        $template = "Hello %s,\n\n%s invited you to join its EMS portal as %s.\n\n"
-            . "Open this link within 48 hours:\n%s\n\n"
-            . "If you were not expecting this invitation, you can ignore this message.\n";
-        $body = sprintf(
-            $template,
-            (string)$user->name,
+        $message = Email::invitation(
             (string)$school->name,
+            (string)$user->name,
             (string)$user->role,
-            $url
+            $url,
         );
 
         Resend::deliver(
             (string)$user->email,
             sprintf('Join %s on EMS', (string)$school->name),
-            $body,
+            $message['text'],
+            $message['html'],
         );
     }
 

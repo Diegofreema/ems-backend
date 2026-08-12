@@ -237,6 +237,9 @@ final class FinanceSecurity
         if (!$decision) {
             throw new HttpException('The refund must be approved before payout can be confirmed.', 422);
         }
+        if ((string)$decision->decided_by_user_id === $viewer->userId) {
+            throw new HttpException('A different administrator must confirm the refund payout.', 403);
+        }
         $rowId = (string)($body['statementRowId'] ?? '');
         $statement = $this->tenant('EmsBankStatementRows')->where(['id' => $rowId,'direction' => 'debit','amount' => (int)$request->amount])->first();
         if (!$statement) {

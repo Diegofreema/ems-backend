@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller\Ems;
 
 use App\Api\Jwt;
+use App\Ems\Email;
 use App\Ems\Invitations;
 use App\Ems\Messages;
 use App\Ems\RefreshDenied;
@@ -212,18 +213,16 @@ class AuthController extends AppController
                 ]));
                 try {
                     $school = $this->fetchTable('EmsSchools')->get($user->school_id);
-                    $body = sprintf(
-                        "Hello %s,\n\nYour password reset code for %s is:\n\n%s\n\n"
-                            . "This code expires in 30 minutes and works only once.\n\n"
-                            . "If you did not request this, you can ignore this message.\n",
-                        (string)$user->name,
+                    $message = Email::passwordReset(
                         (string)$school->name,
+                        (string)$user->name,
                         $code,
                     );
                     Resend::deliver(
                         (string)$user->email,
                         sprintf('Reset your %s EMS password', (string)$school->name),
-                        $body,
+                        $message['text'],
+                        $message['html'],
                     );
                 } catch (Throwable $e) {
                     $resets->delete($reset);

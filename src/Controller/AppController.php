@@ -17,6 +17,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Cake\Controller\Controller;
+use Cake\Event\EventInterface;
+use Cake\Http\Exception\ServiceUnavailableException;
 use Cake\ORM\TableRegistry;
 use Cake\Routing\Router;
 /**
@@ -29,6 +31,53 @@ use Cake\Routing\Router;
  */
 class AppController extends Controller
 {
+    /**
+     * Legacy gateways update mutable invoices and transactions outside the EMS
+     * finance ledger. Keep every entry and callback closed until replacement.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const LEGACY_ONLINE_PAYMENT_ACTIONS = [
+        'Invoices' => ['verifyetransact', 'gettransactiondata', 'getpinvendingpayment'],
+        'Transactions' => [
+            'gotopaystack', 'paymentverificationstack', 'verifycredo', 'paymentverification',
+            'remita_transaction_details', 'confirmremitapay', 'reconfirmtrxcredo',
+            'cunonlineconfirmpay', 'transvalidate', 'getpaymentnotification',
+            'getwebpayinterswitch', 'updatetx', 'retrypayment', 'getpaymentstatusfluter',
+            'requeryfailedpayment', 'gotocredo',
+        ],
+        'Students' => [
+            'generatepayeeid', 'getmypayeeid', 'gotopaystack', 'paymentverification',
+            'verifypay', 'initiateremitapostjson', 'getsplitinvoice', 'remitasplit',
+            'getictrrr', 'generateapplicantpayeeid', 'generatetranscriptpayeeid',
+            'gettranscriptinvoice', 'getinvoiceforfees', 'getapplicantpayeeid',
+            'paymentinvoice', 'gotopaystackotherfees', 'paymentverificationotherfees',
+            'payfees', 'interswitchwebpay', 'gotocredo', 'verifycredo', 'getpayonline',
+            'gotopaystacktest', 'paymentverificationtest',
+        ],
+        'Sparents' => ['gotopaystacktest', 'paymentverificationtest'],
+        'SparentsStudents' => ['gotopaystacktest', 'paymentverificationtest'],
+    ];
+
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+
+        if (self::isLegacyOnlinePaymentAction(
+            (string)$this->request->getParam('controller'),
+            (string)$this->request->getParam('action')
+        )) {
+            throw new ServiceUnavailableException(
+                'Legacy online payments are temporarily unavailable while the secure finance system is completed.'
+            );
+        }
+    }
+
+    public static function isLegacyOnlinePaymentAction(string $controller, string $action): bool
+    {
+        return in_array($action, self::LEGACY_ONLINE_PAYMENT_ACTIONS[$controller] ?? [], true);
+    }
+
     /**
      * Initialization hook method.
      *

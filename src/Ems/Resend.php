@@ -12,7 +12,8 @@ final class Resend
 {
     private const ENDPOINT = 'https://api.resend.com/emails';
 
-    public static function deliver(string $to, string $subject, string $text): void
+    /** Send one text message with an optional HTML alternative. */
+    public static function deliver(string $to, string $subject, string $text, ?string $html = null): void
     {
         $apiKey = trim((string)Configure::read('Ems.resendApiKey', ''));
         $from = trim((string)Configure::read('Ems.emailFrom', ''));
@@ -20,12 +21,17 @@ final class Resend
             throw new RuntimeException('Resend mail configuration is missing.');
         }
 
-        $response = (new Client())->post(self::ENDPOINT, json_encode([
+        $payload = [
             'from' => $from,
             'to' => [$to],
             'subject' => $subject,
             'text' => $text,
-        ], JSON_THROW_ON_ERROR), [
+        ];
+        if ($html !== null) {
+            $payload['html'] = $html;
+        }
+
+        $response = (new Client())->post(self::ENDPOINT, json_encode($payload, JSON_THROW_ON_ERROR), [
             'type' => 'json',
             'timeout' => 30,
             'headers' => ['Authorization' => 'Bearer ' . $apiKey],
@@ -36,6 +42,7 @@ final class Resend
         }
     }
 
+    /** Static utility class. */
     private function __construct()
     {
     }

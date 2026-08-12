@@ -2205,15 +2205,15 @@ class StudentsController extends AppController {
         $auth = "";
         //account for feeding
         $subaccount4 = 'ACCT_6vg2ks21fg24izr';
-        $auth4 = 'sk_live_8c83b87beedc6e7b0020138c94b13762a991dd17';
+        $auth4 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
         //account for accommodation, reg and other fees
         $subaccount3 = 'ACCT_1m4gnaie5gd9jmt';
-        $auth3 = 'sk_live_e58bcfe9a3f3f80e9b696cc2d1da2de5331feaed';
+        $auth3 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
 
         $subaccount2 = 'ACCT_b58j8zfhogydmda';
-        $auth2 = 'sk_live_c6cd37f39df62d1643b8a6c854ca82a40667d61e';
+        $auth2 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
         $subaccount1 = 'ACCT_eyec9earijeztxb';
-        $auth1 = 'sk_live_bd5ae86597f3fed8a4ad7c013d31c572bc9f7d3f';
+        $auth1 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
         $subacc = 'ACCT_eyec9earijeztxb'; // sub-account code, you get this when you set up a split account.
         $cancel_url = $baseurl . 'cancel/' . $transaction->payref . '/';
         if (($fee_id == 3) || ($fee_id == 55) || ($fee_id == 57) || ($fee_id == 63) || ($fee_id == 64) || ($fee_id == 65) || ($fee_id == 68) || ($fee_id == 67)) {
@@ -2312,15 +2312,15 @@ class StudentsController extends AppController {
         $auth = "";
         //account for feeding
         $subaccount4 = 'ACCT_6vg2ks21fg24izr';
-        $auth4 = 'sk_live_8c83b87beedc6e7b0020138c94b13762a991dd17';
+        $auth4 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
         //account for accommodation, reg and other fees
         $subaccount3 = 'ACCT_1m4gnaie5gd9jmt';
-        $auth3 = 'sk_live_e58bcfe9a3f3f80e9b696cc2d1da2de5331feaed';
+        $auth3 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
 
         $subaccount2 = 'ACCT_b58j8zfhogydmda';
-        $auth2 = 'sk_live_c6cd37f39df62d1643b8a6c854ca82a40667d61e';
+        $auth2 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
         $subaccount1 = 'ACCT_eyec9earijeztxb';
-        $auth1 = 'sk_live_bd5ae86597f3fed8a4ad7c013d31c572bc9f7d3f';
+        $auth1 = (string)getenv('LEGACY_PAYSTACK_SECRET_KEY');
         $subacc = 'ACCT_eyec9earijeztxb'; // sub-account code, you get this when you set up a split account.
         // $fee_id = $transaction->fee_id;
 
@@ -2350,7 +2350,7 @@ class StudentsController extends AppController {
             ],
         ));
 
-        //sk_test_7d5d515418c31cf203abbe3f753b1487b7d2a5e2
+        // Legacy payment key removed.
 
         $response = curl_exec($curl);
         $err = curl_error($curl);
@@ -5111,7 +5111,7 @@ ________________________________
                 ]),
             ]),
             CURLOPT_HTTPHEADER => [
-                "authorization: Bearer sk_live_bd5ae86597f3fed8a4ad7c013d31c572bc9f7d3f",
+                "authorization: Bearer " . getenv('LEGACY_PAYSTACK_SECRET_KEY'),
                 "content-type: application/json",
                 "cache-control: no-cache"
             ],
@@ -5146,12 +5146,12 @@ ________________________________
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => [
                 "accept: application/json",
-                "authorization: Bearer sk_live_bd5ae86597f3fed8a4ad7c013d31c572bc9f7d3f",
+                "authorization: Bearer " . getenv('LEGACY_PAYSTACK_SECRET_KEY'),
                 "cache-control: no-cache"
             ],
         ));
 
-        //sk_test_7d5d515418c31cf203abbe3f753b1487b7d2a5e2
+        // Legacy payment key removed.
 
         $response = curl_exec($curl);
         $err = curl_error($curl);
@@ -5679,12 +5679,12 @@ ________________________________
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => [
                 "accept: application/json",
-                "authorization: 0PRI0214x8QLukyy5A02dW76mRW78kHM",
+                "authorization: " . getenv('LEGACY_CREDO_DEMO_KEY'),
 //                "cache-control: no-cache"
             ],
         ));
 
-        //sk_test_7d5d515418c31cf203abbe3f753b1487b7d2a5e2
+        // Legacy payment key removed.
 
         $response = curl_exec($curl);
         $err = curl_error($curl);
@@ -6156,7 +6156,7 @@ ________________________________
                 ]),
             ]),
             CURLOPT_HTTPHEADER => [
-                "authorization: Bearer sk_test_02417f044c8402c28651bdbf63c95109662c4014",
+                "authorization: Bearer " . getenv('LEGACY_PAYSTACK_SECRET_KEY'),
                 "content-type: application/json",
                 "cache-control: no-cache"
             ],
@@ -6164,7 +6164,7 @@ ________________________________
 
         $response = curl_exec($curl);
         $err = curl_error($curl);
-        //sk_test_3643e4d436f451b2818fc018700c09bf94dba11a
+        // Legacy payment key removed.
         // debug(json_encode( $response, JSON_PRETTY_PRINT));exit;
 
         if ($err) {
@@ -6192,12 +6192,12 @@ ________________________________
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => [
                 "accept: application/json",
-                "authorization: Bearer sk_test_02417f044c8402c28651bdbf63c95109662c4014",
+                "authorization: Bearer " . getenv('LEGACY_PAYSTACK_SECRET_KEY'),
                 "cache-control: no-cache"
             ],
         ));
 
-        //sk_live_65b10dd930c5c67ca10d7d832211d10d40ed40e5 
+        // Legacy payment key removed.
 
 
         $response = curl_exec($curl);
@@ -6265,6 +6265,7 @@ ________________________________
     
     // allow unrestricted pages
     public function beforeFilter(EventInterface $event) {
+        parent::beforeFilter($event);
         $this->Auth->allow(['newapplicant', 'requesttranscript', 'transcript', 'getstates', 'checkstatus', 'index', 'admission', 'getdapts',
             'academics', 'news', 'applicationguide', 'alumai', 'academics', 'aboutus','ijmbapplicantion', 'getlgas', 'printapplicationform',
             'getacceptanceletter', 'howtopayfees', 'generateapplicantpayeeid', 'creatnewinvoice',
