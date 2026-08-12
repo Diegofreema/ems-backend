@@ -67,10 +67,10 @@ return [
             static function (string $origin): string {
                 return rtrim(trim($origin), '/');
             },
-            explode(',', (string)env(
-                'EMS_CORS_ORIGINS',
-                env('EMS_FRONTEND_URL', 'http://localhost:5173')
-            ))
+            array_merge(
+                [(string)env('EMS_FRONTEND_URL', 'http://localhost:5173')],
+                explode(',', (string)env('EMS_CORS_ORIGINS', ''))
+            )
         ))),
         'cookieSecure' => filter_var(env('EMS_COOKIE_SECURE', true), FILTER_VALIDATE_BOOLEAN),
         'trustProxy' => filter_var(env('EMS_TRUST_PROXY', false), FILTER_VALIDATE_BOOLEAN),
