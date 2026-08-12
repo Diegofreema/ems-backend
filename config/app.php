@@ -81,6 +81,32 @@ return [
     ],
 
     /*
+     * Environment-backed API configuration belongs in this tracked file so it
+     * is available in deployments where app_local.php is intentionally absent.
+     */
+    'Jwt' => [
+        'secret' => env('JWT_SECRET'),
+        'accessTtl' => 900,
+        'refreshTtl' => 60 * 60 * 24 * 14,
+        'issuer' => 'ltalms-api',
+    ],
+
+    'Ems' => [
+        'frontendBaseUrl' => rtrim((string)env('EMS_FRONTEND_URL', 'http://localhost:5173'), '/'),
+        'corsOrigins' => array_values(array_filter(array_map(
+            static function (string $origin): string {
+                return rtrim(trim($origin), '/');
+            },
+            array_merge(
+                [(string)env('EMS_FRONTEND_URL', 'http://localhost:5173')],
+                explode(',', (string)env('EMS_CORS_ORIGINS', ''))
+            )
+        ))),
+        'cookieSecure' => filter_var(env('EMS_COOKIE_SECURE', true), FILTER_VALIDATE_BOOLEAN),
+        'trustProxy' => filter_var(env('EMS_TRUST_PROXY', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    /*
      * Apply timestamps with the last modified time to static assets (js, css, images).
      * Will append a querystring parameter containing the time the file was modified.
      * This is useful for busting browser caches.
@@ -273,6 +299,7 @@ return [
         'default' => [
             'className' => Connection::class,
             'driver' => Mysql::class,
+            'url' => env('DATABASE_URL', null),
             'persistent' => false,
             'timezone' => 'UTC',
 
