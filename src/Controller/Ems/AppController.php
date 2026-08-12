@@ -233,10 +233,23 @@ class AppController extends Controller
                 $this->response = $this->response->withHeader('Retry-After', (string)$e->retryAfter);
             }
         } catch (Throwable $e) {
+            $requestId = trim((string)$this->request->getHeaderLine('X-Request-ID'));
+            if ($requestId === '') {
+                $requestId = bin2hex(random_bytes(16));
+            }
+            error_log(sprintf(
+                '[EMS request %s] %s %s failed with %s: %s',
+                $requestId,
+                $this->request->getMethod(),
+                $this->request->getRequestTarget(),
+                get_class($e),
+                $e->getMessage()
+            ));
             $message = Configure::read('debug')
                 ? $e->getMessage()
                 : 'The school server did not respond. Please try again.';
-            $this->response = $this->errorResponse(500, $message);
+            $this->response = $this->errorResponse(500, $message)
+                ->withHeader('X-Request-ID', $requestId);
         }
     }
 
