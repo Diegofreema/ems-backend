@@ -81,6 +81,19 @@ final class OfflinePaymentsTest extends EmsIntegrationTestCase
         $this->assertSame(100000, $this->responseJson()['totalBalance']);
     }
 
+    public function testCashAcknowledgementCannotBeReusedInTheSameBatch(): void
+    {
+        $batchId = $this->seedOpenBatch();
+        $body = ['amount' => 20000,'method' => 'cash','receivedOn' => date('Y-m-d'),'payerName' => 'Pat Parent','payerRelationship' => 'parent','cashAcknowledgement' => 'ACK-UNIQUE','cashBatchId' => $batchId];
+        $this->authFinance('bursar', $this->bursarId, 'Bola Bursar', 'first-cash-ack');
+        $this->post($this->schoolPath('/invoices/' . $this->invoiceId . '/payment-submissions'), $body);
+        $this->assertResponseCode(201);
+        $this->authFinance('bursar', $this->bursarId, 'Bola Bursar', 'reused-cash-ack');
+        $this->post($this->schoolPath('/invoices/' . $this->invoiceId . '/payment-submissions'), $body);
+        $this->assertResponseCode(409);
+        $this->assertSame('This cash acknowledgement is already recorded in the batch.', $this->responseJson()['message']);
+    }
+
     public function testIntegrityFaultLocksFinanceWritesButNotReads(): void
     {
         $this->db->insert('ems_finance_integrity_locks', ['id' => Text::uuid(),'school_id' => $this->schoolId,'reason' => 'Audit chain mismatch','detected_at' => $this->now()]);
@@ -230,6 +243,38 @@ final class OfflinePaymentsTest extends EmsIntegrationTestCase
             'invoice_id' => $this->invoiceId,
             'amount' => 25000,
         ]));
+
+        $duplicateId = Text::uuid();
+        $duplicateEvidenceId = Text::uuid();
+        $duplicatePath = $this->schoolId . '/finance/payment_submission/' . $duplicateId . '/' . $duplicateEvidenceId;
+        $duplicatePdf = "%PDF-1.4\nDuplicate claim evidence";
+        $this->db->insert('ems_payment_submissions', [
+            'id' => $duplicateId, 'school_id' => $this->schoolId, 'invoice_id' => $this->invoiceId,
+            'student_id' => $this->studentId, 'amount' => 25000, 'method' => 'bank_transfer',
+            'normalized_reference' => 'TRANSFER-001', 'payer_name' => 'Pat Parent',
+            'payer_relationship' => 'parent', 'received_on' => date('Y-m-d'),
+            'statement_row_id' => $rowId, 'recorded_by_user_id' => $this->bursarId,
+            'recorded_by_name' => 'Bola Bursar', 'provenance' => 'offline', 'created' => $this->now(),
+        ]);
+        $this->db->insert('ems_document_objects', [
+            'id' => Text::uuid(), 'storage_path' => $duplicatePath, 'content_type' => 'application/pdf',
+            'size_bytes' => strlen($duplicatePdf), 'body' => $duplicatePdf,
+            'created' => $this->now(), 'modified' => $this->now(),
+        ]);
+        $this->db->insert('ems_finance_evidence', [
+            'id' => $duplicateEvidenceId, 'school_id' => $this->schoolId,
+            'owner_type' => 'payment_submission', 'owner_id' => $duplicateId,
+            'storage_path' => $duplicatePath, 'filename' => 'duplicate-receipt.pdf',
+            'content_hash' => hash('sha256', $duplicatePdf), 'media_type' => 'application/pdf',
+            'size_bytes' => strlen($duplicatePdf), 'scan_status' => 'clean',
+            'created_by_user_id' => $this->bursarId, 'created' => $this->now(),
+        ]);
+        $this->authFinance('administrator', $this->adminId, 'Ada Admin', 'duplicate-transfer');
+        $this->post($this->schoolPath('/payment-submissions/' . $duplicateId . '/decision'), [
+            'decision' => 'approved', 'reason' => 'Duplicate check.',
+        ]);
+        $this->assertResponseCode(409);
+        $this->assertSame('This bank statement row has already verified another payment.', $this->responseJson()['message']);
     }
 
     private function seedOpenBatch(): string

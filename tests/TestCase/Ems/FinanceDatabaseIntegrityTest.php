@@ -32,4 +32,14 @@ final class FinanceDatabaseIntegrityTest extends EmsDbTestCase
         $rows = $this->db->execute("SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME IN ('chk_submission_amount','chk_finance_separation','chk_posted_payment_amount','chk_ledger_signed_amount','fk_payment_student_secure','fk_ledger_invoice')")->fetchAll('assoc');
         $this->assertSame(6, count($rows));
     }
+
+    public function testCashAcknowledgementsAreUniqueWithinACollectionBatch(): void
+    {
+        $row = $this->db->execute(
+            "SELECT NON_UNIQUE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() "
+            . "AND TABLE_NAME='ems_payment_submissions' AND INDEX_NAME='uq_submission_cash_acknowledgement' LIMIT 1"
+        )->fetch('assoc');
+
+        $this->assertSame('0', (string)($row['NON_UNIQUE'] ?? ''));
+    }
 }

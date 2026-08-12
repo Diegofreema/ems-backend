@@ -97,6 +97,11 @@ final class FinanceSecurity
         if ($amount > $balance || $balance <= 0) {
             throw new HttpException('The amount cannot exceed the invoice balance.', 422);
         }
+        if ($method === 'cash' && $this->tenant('EmsPaymentSubmissions')->where([
+            'cash_batch_id' => (string)$body['cashBatchId'], 'cash_acknowledgement' => $cashAck,
+        ])->count() > 0) {
+            throw new HttpException('This cash acknowledgement is already recorded in the batch.', 409);
+        }
 
         $id = Text::uuid();
         $evidence = null;
@@ -361,9 +366,18 @@ final class FinanceSecurity
         if (!$evidence) {
             throw new HttpException('Payment evidence must pass malware scanning before approval.', 422);
         }
-        $row = $this->tenant('EmsBankStatementRows')->where(['id' => (string)$submission->statement_row_id,'direction' => 'credit','amount' => (int)$submission->amount])->first();
+        $row = $this->tenant('EmsBankStatementRows')->where(['id' => (string)$submission->statement_row_id,'direction' => 'credit','amount' => (int)$submission->amount])->epilog('FOR UPDATE')->first();
         if (!$row || strtoupper(trim((string)$row->reference)) !== (string)$submission->normalized_reference) {
             throw new HttpException('Match the payment to a credit statement row with the same amount and reference.', 422);
+        }
+        $claims = $this->tenant('EmsPaymentSubmissions')->select(['id'])->where([
+            'statement_row_id' => (string)$submission->statement_row_id,
+            'id !=' => (string)$submission->id,
+        ])->all()->extract('id')->toList();
+        if ($claims !== [] && $this->tenant('EmsFinanceDecisions')->where([
+            'request_type' => 'payment_submission', 'request_id IN' => $claims, 'decision' => 'approved',
+        ])->count() > 0) {
+            throw new HttpException('This bank statement row has already verified another payment.', 409);
         }
         if ((string)$submission->method === 'cheque' && stripos((string)$row->description, 'cleared') === false) {
             throw new HttpException('A cheque must be cleared before approval.', 422);
