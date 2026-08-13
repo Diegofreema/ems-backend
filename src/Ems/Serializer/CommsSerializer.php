@@ -33,6 +33,21 @@ final class CommsSerializer
         return $out;
     }
 
+    /** One portal inbox row (§3.19) — `readAt` null until the panel is opened. */
+    public static function portalNotification(EntityInterface $n): array
+    {
+        return [
+            'id' => (string)$n->id,
+            'kind' => (string)$n->kind,
+            'title' => (string)$n->title,
+            'body' => (string)$n->body,
+            'studentId' => $n->student_id === null ? null : (string)$n->student_id,
+            'date' => Wire::date($n->date),
+            'readAt' => Wire::datetime($n->read_at),
+            'createdOn' => Wire::datetime($n->created),
+        ];
+    }
+
     public static function notification(EntityInterface $n): array
     {
         return [

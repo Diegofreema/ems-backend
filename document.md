@@ -1102,7 +1102,7 @@ type DayScheduleItem = { period: number; start: string; end: string; subject: st
 | `GET /classes/:id/timetable` | — | `TimetableSlotView[]` | — |
 | `GET /teachers/:teacherId/day` | `day: Day` | `DayScheduleItem[]` | That teacher's slots for the day, period asc, times from the shared grid. |
 | `GET /classes/:id/register` | `date` | `ClassRegister` | Unsubmitted dates default every row to `present`. |
-| `PUT /classes/:id/register` | `date`, `{ entries: { studentId; status; note? }[]; reason? }` | `void` | **Class access required** (403 "This class is not assigned to you."). First submission creates the `AttendanceSession`. Re-submission is a **correction**: requires a reason → 422 "This register is already submitted. A correction needs a reason for the record."; appends `{by, on, reason}` to `session.corrections`. Attendance rows upserted per `(studentId, date)`. Optional per-student `note` (trimmed, ≤255 chars) is stored on the row; an empty/absent note clears it. The correction trail lives on the session row — no separate audit event. |
+| `PUT /classes/:id/register` | `date`, `{ entries: { studentId; status; note? }[]; reason? }` | `void` | **Class access required** (403 "This class is not assigned to you."). First submission creates the `AttendanceSession`. Re-submission is a **correction**: requires a reason → 422 "This register is already submitted. A correction needs a reason for the record."; appends `{by, on, reason}` to `session.corrections`. Attendance rows upserted per `(studentId, date)`. Optional per-student `note` (trimmed, ≤255 chars) is stored on the row; an empty/absent note clears it. The correction trail lives on the session row — no separate audit event. **Absence alerts**: a save that makes a student **newly absent** for the date (no prior `absent` row) alerts the family **at most once per (student, date)** — an e-mail to the primary guardian (recorded in the §3.20 send log with a per-recipient trail; failures land as retryable `failed` rows) and a §3.19 portal-inbox row per linked parent account. Corrections re-flipping the same date stay silent; `late`/`excused` never alert; the register note is NOT included in any alert. Alert delivery runs after the register commits and can never fail the save. |
 
 ---
 
@@ -1397,6 +1397,22 @@ type WardOverview = {
 |---|---|---|---|
 | `GET /portal/identity` | — | `PortalIdentity` | Resolves the signed-in account's `PersonLink` to the person/wards. Never errors. |
 | `GET /portal/wards/:studentId` | — | `WardOverview` | Student access (403 family message). Attendance window = the last 20 distinct register dates school-wide; rate counts present+late. Fees derive from the same net-paid rule as §3.7 (completed − processed refunds). Latest result = most recent published exam with fully-marked rows for the ward. |
+| `GET /portal/notifications` | — | `{ items: PortalNotification[]; unread: number }` | The signed-in account's in-app inbox: latest 50 rows, newest first, plus the TOTAL unread count. Accounts with no rows (all staff roles today) get `{ items: [], unread: 0 }`. |
+| `POST /portal/notifications/read` | — | `void` (204) | Opening the panel marks ALL of the account's unread rows read (`readAt` stamped). |
+
+```ts
+type PortalNotification = {
+  id: string
+  kind: 'absence_alert'             // extensible — new kinds are additive
+  title: string; body: string       // plain text; never includes register notes
+  studentId: string | null          // the ward the row is about
+  date: string | null               // the register date (YYYY-MM-DD)
+  readAt: string | null             // ISO datetime; null until marked read
+  createdOn: string | null          // ISO datetime
+}
+```
+
+Inbox rows are written by the §3.12 absence-alert path — one row per linked **parent** account when a ward is newly marked absent (guardians only by design; students see their record on the attendance page).
 
 ---
 

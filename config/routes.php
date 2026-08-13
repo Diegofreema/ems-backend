@@ -304,6 +304,8 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         // --- Portal (§3.19) --- (static /portal/dashboard before the {studentId} route)
         $s->get('/portal/identity', ['controller' => 'Portal', 'action' => 'identity']);
         $s->get('/portal/dashboard', ['controller' => 'Portal', 'action' => 'dashboard']);
+        $s->get('/portal/notifications', ['controller' => 'Portal', 'action' => 'notifications']);
+        $s->post('/portal/notifications/read', ['controller' => 'Portal', 'action' => 'markNotificationsRead']);
         $s->get('/portal/wards/{studentId}', ['controller' => 'Portal', 'action' => 'wardOverview'])
             ->setPass(['studentId']);
 

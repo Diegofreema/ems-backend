@@ -3,12 +3,15 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
+use App\Ems\AbsenceAlerts;
 use App\Ems\Messages;
 use App\Ems\Serializer\ClassSerializer;
 use App\Ems\Serializer\StudentSerializer;
 use App\Ems\SubjectCatalog;
+use Cake\Core\Configure;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
+use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 
 /**
@@ -221,8 +224,13 @@ class ClassesController extends AppController
 
         $viewer = $this->viewer;
         $schoolId = $viewer->schoolId;
+        // Students this save makes NEWLY absent trigger a guardian alert: the
+        // once-only marker + portal inbox rows are claimed inside the register
+        // transaction; the e-mails go out only after it commits (§3.12).
+        $alerts = new AbsenceAlerts($this->getTableLocator(), $schoolId);
+        $claimed = [];
         $sessions->getConnection()->transactional(
-            function () use ($sessions, $records, $session, $group, $date, $entries, $reason, $viewer, $schoolId): void {
+            function () use ($sessions, $records, $session, $group, $date, $entries, $reason, $viewer, $schoolId, $alerts, &$claimed): void {
                 $now = FrozenTime::now('UTC');
                 if ($session === null) {
                     $sessions->saveOrFail($sessions->newEntity([
@@ -246,7 +254,10 @@ class ClassesController extends AppController
                     $sessions->saveOrFail($session);
                 }
 
-                // Upsert one attendance row per (studentId, date).
+                // Upsert one attendance row per (studentId, date), tracking the
+                // absent TRANSITIONS — a student already recorded absent for the
+                // date must not re-alert on a correction.
+                $newlyAbsent = [];
                 foreach ($entries as $entry) {
                     $studentId = (string)($entry['studentId'] ?? '');
                     $status = (string)($entry['status'] ?? '');
@@ -263,6 +274,9 @@ class ClassesController extends AppController
                             'date' => $date,
                         ])
                         ->first();
+                    if ($status === 'absent' && ($existing === null || (string)$existing->status !== 'absent')) {
+                        $newlyAbsent[] = $studentId;
+                    }
                     if ($existing !== null) {
                         $existing->status = $status;
                         $existing->note = $note === '' ? null : $note;
@@ -277,8 +291,24 @@ class ClassesController extends AppController
                         ]));
                     }
                 }
+                $claimed = $alerts->claim($newlyAbsent, $date);
             },
         );
+
+        // Post-commit: e-mail the claimed students' guardians. Delivery rides
+        // the Comms trail (send log, masked address, failed-row on error), so a
+        // provider problem never surfaces as a register error.
+        if ($claimed !== []) {
+            $alerts->deliver(
+                $claimed,
+                $date,
+                (string)$group->name,
+                $this->comms(),
+                (string)Configure::read('Ems.frontendBaseUrl'),
+                $viewer->name,
+                FrozenDate::today()->format('Y-m-d'),
+            );
+        }
 
         return $this->json(null, 204);
     }

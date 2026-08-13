@@ -15,6 +15,7 @@ use App\Ems\Serializer\Wire;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
+use Cake\I18n\FrozenTime;
 
 /**
  * The parent/student portal (document.md §3.19). Read-only endpoints:
@@ -91,6 +92,46 @@ class PortalController extends AppController
         }
 
         return $this->json($identity);
+    }
+
+    /**
+     * GET /portal/notifications — the signed-in account's in-app inbox (§3.19):
+     * latest 50 rows plus the TOTAL unread count (not just unread-in-page).
+     * Accounts with no inbox rows — every staff role today — get an empty list.
+     */
+    public function notifications(): Response
+    {
+        $userId = $this->viewer->userId;
+        if ($userId === '') {
+            return $this->json(['items' => [], 'unread' => 0]);
+        }
+        $rows = $this->tenant()->query('EmsPortalNotifications')
+            ->where(['user_id' => $userId])
+            ->orderByDesc('created')
+            ->limit(50)
+            ->all()->toList();
+        $unread = $this->tenant()->query('EmsPortalNotifications')
+            ->where(['user_id' => $userId, 'read_at IS' => null])
+            ->count();
+
+        return $this->json([
+            'items' => array_map([CommsSerializer::class, 'portalNotification'], $rows),
+            'unread' => $unread,
+        ]);
+    }
+
+    /** POST /portal/notifications/read — opening the panel marks all read. */
+    public function markNotificationsRead(): Response
+    {
+        $userId = $this->viewer->userId;
+        if ($userId !== '') {
+            $this->fetchTable('EmsPortalNotifications')->updateAll(
+                ['read_at' => FrozenTime::now('UTC')],
+                ['school_id' => $this->viewer->schoolId, 'user_id' => $userId, 'read_at IS' => null],
+            );
+        }
+
+        return $this->json(null, 204);
     }
 
     /**

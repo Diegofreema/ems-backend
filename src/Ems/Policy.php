@@ -287,6 +287,8 @@ final class Policy
         'Portal.identity' => 'ALL',
         'Portal.dashboard' => 'ALL',
         'Portal.wardOverview' => 'ALL',
+        'Portal.notifications' => 'ALL',
+        'Portal.markNotificationsRead' => 'ALL',
 
         // --- Audit & privacy requests (§3.23) — administrators only ---
         'Audit.events' => 'ADMIN',
