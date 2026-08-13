@@ -164,11 +164,13 @@ class ClassesController extends AppController
         }
 
         $statuses = [];
+        $notes = [];
         foreach (
             $this->tenant()->query('EmsAttendanceRecords')
                 ->where(['date' => $date]) as $record
         ) {
             $statuses[(string)$record->student_id] = (string)$record->status;
+            $notes[(string)$record->student_id] = (string)($record->note ?? '');
         }
 
         $rows = [];
@@ -176,6 +178,7 @@ class ClassesController extends AppController
             $rows[] = [
                 'student' => StudentSerializer::one($student),
                 'status' => $statuses[(string)$student->id] ?? 'present',
+                'note' => $notes[(string)$student->id] ?? '',
             ];
         }
 
@@ -250,6 +253,10 @@ class ClassesController extends AppController
                     if ($studentId === '' || $status === '') {
                         continue;
                     }
+                    // A per-student note (e.g. "Left early — dental appointment").
+                    // Optional and capped to the column width; an emptied note
+                    // clears the stored one rather than leaving a stale value.
+                    $note = mb_substr(trim((string)($entry['note'] ?? '')), 0, 255);
                     $existing = $this->tenant()->query('EmsAttendanceRecords')
                         ->where([
                             'student_id' => $studentId,
@@ -258,6 +265,7 @@ class ClassesController extends AppController
                         ->first();
                     if ($existing !== null) {
                         $existing->status = $status;
+                        $existing->note = $note === '' ? null : $note;
                         $records->saveOrFail($existing);
                     } else {
                         $records->saveOrFail($records->newEntity([
@@ -265,6 +273,7 @@ class ClassesController extends AppController
                             'student_id' => $studentId,
                             'date' => $date,
                             'status' => $status,
+                            'note' => $note === '' ? null : $note,
                         ]));
                     }
                 }

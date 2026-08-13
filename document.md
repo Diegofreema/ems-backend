@@ -1074,7 +1074,7 @@ Read models (server-computed):
 type ClassSummary = ClassGroup & { studentCount: number; formTeacherName: string | null }
 type AllocationView = SubjectAllocation & { teacherName: string }     // "Unassigned" fallback
 type TimetableSlotView = TimetableSlot & { teacherName: string }
-type RegisterRow = { student: Student; status: AttendanceStatus }
+type RegisterRow = { student: Student; status: AttendanceStatus; note: string }  // note '' when none
 type AttendanceSession = {          // one submitted register per class per date
   id: string; schoolId: string; classGroupId: string
   date: string
@@ -1102,7 +1102,7 @@ type DayScheduleItem = { period: number; start: string; end: string; subject: st
 | `GET /classes/:id/timetable` | — | `TimetableSlotView[]` | — |
 | `GET /teachers/:teacherId/day` | `day: Day` | `DayScheduleItem[]` | That teacher's slots for the day, period asc, times from the shared grid. |
 | `GET /classes/:id/register` | `date` | `ClassRegister` | Unsubmitted dates default every row to `present`. |
-| `PUT /classes/:id/register` | `date`, `{ entries: { studentId; status }[]; reason? }` | `void` | **Class access required** (403 "This class is not assigned to you."). First submission creates the `AttendanceSession`. Re-submission is a **correction**: requires a reason → 422 "This register is already submitted. A correction needs a reason for the record."; appends `{by, on, reason}` to `session.corrections`. Attendance rows upserted per `(studentId, date)`. The correction trail lives on the session row — no separate audit event. |
+| `PUT /classes/:id/register` | `date`, `{ entries: { studentId; status; note? }[]; reason? }` | `void` | **Class access required** (403 "This class is not assigned to you."). First submission creates the `AttendanceSession`. Re-submission is a **correction**: requires a reason → 422 "This register is already submitted. A correction needs a reason for the record."; appends `{by, on, reason}` to `session.corrections`. Attendance rows upserted per `(studentId, date)`. Optional per-student `note` (trimmed, ≤255 chars) is stored on the row; an empty/absent note clears it. The correction trail lives on the session row — no separate audit event. |
 
 ---
 
