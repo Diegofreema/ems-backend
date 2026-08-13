@@ -69,7 +69,7 @@ class ClassesController extends AppController
      */
     public function view(string $id): Response
     {
-        $group = $this->findClass($id);
+        $group = $this->findClassScoped($id);
         $summary = $this->summarize([$group]);
 
         return $this->json($summary[0]);
@@ -96,7 +96,7 @@ class ClassesController extends AppController
      */
     public function roster(string $id): Response
     {
-        $group = $this->findClass($id);
+        $group = $this->findClassScoped($id);
 
         return $this->json(array_map(
             [StudentSerializer::class, 'one'],
@@ -109,7 +109,7 @@ class ClassesController extends AppController
      */
     public function allocations(string $id): Response
     {
-        $group = $this->findClass($id);
+        $group = $this->findClassScoped($id);
         $teacherNames = $this->teacherNamesById();
 
         $rows = $this->tenant()->query('EmsSubjectAllocations')
@@ -133,7 +133,7 @@ class ClassesController extends AppController
      */
     public function timetable(string $id): Response
     {
-        $group = $this->findClass($id);
+        $group = $this->findClassScoped($id);
         $teacherNames = $this->teacherNamesById();
 
         $slotQuery = $this->tenant()->query('EmsTimetableSlots')
@@ -157,7 +157,7 @@ class ClassesController extends AppController
      */
     public function register(string $id): Response
     {
-        $group = $this->findClass($id);
+        $group = $this->findClassScoped($id);
         $date = (string)$this->request->getQuery('date', '');
         if ($date === '') {
             $this->fail(400, 'A register needs a date.');
@@ -198,8 +198,7 @@ class ClassesController extends AppController
      */
     public function saveRegister(string $id): Response
     {
-        $group = $this->findClass($id);
-        $this->scope()->assertClassAccess((string)$group->id);
+        $group = $this->findClassScoped($id);
 
         $body = $this->body();
         $date = (string)($this->request->getQuery('date') ?? $body['date'] ?? '');
@@ -565,6 +564,23 @@ class ClassesController extends AppController
     private function findClass(string $id): EntityInterface
     {
         return $this->findOr404('EmsClassGroups', $id, Messages::CLASS_NOT_FOUND);
+    }
+
+    /**
+     * Resolve a class within the tenant AND assert the viewer's scope reaches
+     * it (§1.4). The by-id READS (roster, view, allocations, timetable) share
+     * this with the register WRITE (saveRegister) so the scope check can never
+     * be forgotten on one side: without it a family or out-of-class teacher can
+     * read any one class's roster — full student PII — by its id, even though
+     * the class endpoints are an `ALL`-tier read. findClass() alone is tenant-
+     * scoped only; this is its viewer-scoped counterpart.
+     */
+    private function findClassScoped(string $id): EntityInterface
+    {
+        $group = $this->findClass($id);
+        $this->scope()->assertClassAccess((string)$group->id);
+
+        return $group;
     }
 
     private function findAttendanceSession(string $classGroupId, string $date): ?EntityInterface

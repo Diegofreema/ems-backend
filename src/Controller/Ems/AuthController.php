@@ -7,6 +7,7 @@ use App\Api\Jwt;
 use App\Ems\Email;
 use App\Ems\Invitations;
 use App\Ems\Messages;
+use App\Ems\RateLimiter;
 use App\Ems\RefreshDenied;
 use App\Ems\RefreshTokens;
 use App\Ems\Resend;
@@ -43,6 +44,20 @@ class AuthController extends AppController
     /** Wrong guesses allowed against one reset code before it is dead. */
     private const RESET_MAX_ATTEMPTS = 5;
 
+    /** Failed sign-ins allowed against ONE email before it is throttled, and the
+     *  window in seconds. Bounds distributed (many-IP) brute force of a single
+     *  account, on top of the per-IP 'signin' bucket. Only FAILURES count, so a
+     *  correct password is never blocked — a targeted victim cannot be locked
+     *  out, only an attacker's continued guessing is. */
+    private const SIGNIN_EMAIL_LIMIT = 10;
+    private const SIGNIN_EMAIL_WINDOW = 900;
+
+    /** A real bcrypt hash of a throwaway string, verified against on the
+     *  unknown-email / no-password paths so every sign-in spends exactly one
+     *  bcrypt. Without it, skipping password_verify() when no account matches
+     *  leaks account existence through response timing. */
+    private const TIMING_HASH = '$2y$12$5Tbz.P3DtuwbAElSdbT68eGfKYShQj3gNtXQFHj3kHiaumrSRQgoK';
+
     /** The httpOnly refresh cookie's name and path (scoped to the auth endpoints). */
     private const REFRESH_COOKIE = 'ems_refresh';
     private const REFRESH_COOKIE_PATH = '/api/ems/auth';
@@ -61,18 +76,32 @@ class AuthController extends AppController
             ->where(['LOWER(email)' => $email])
             ->first();
 
-        // Same message for unknown e-mail and wrong password (§3.18).
-        if ($user === null) {
+        $hash = $user?->password_hash;
+        if ($hash === null || !password_verify($password, (string)$hash)) {
+            // Constant-time on the miss paths: an unknown e-mail (or an account
+            // with no password yet) still spends one bcrypt, so response timing
+            // never distinguishes "no such account" from "wrong password".
+            if ($hash === null) {
+                password_verify($password, self::TIMING_HASH);
+            }
+            // Count this failure against the account (all source IPs). Only
+            // failures are counted — the success branch below never touches this
+            // bucket — so a correct password can never be throttled.
+            if ($email !== '') {
+                RateLimiter::hit('signin_email', $email, self::SIGNIN_EMAIL_LIMIT, self::SIGNIN_EMAIL_WINDOW);
+            }
+            // Same message for unknown e-mail and wrong password (§3.18).
             $this->fail(401, Messages::BAD_CREDENTIALS);
         }
+
+        // The password is correct — only NOW is it safe to reveal account state.
+        // An anonymous prober without the password can never reach this branch,
+        // so 'invited'/'disabled' no longer leak that an address is registered.
         if ($user->status === 'invited') {
             $this->fail(403, Messages::ACCOUNT_INVITED);
         }
         if ($user->status === 'disabled') {
             $this->fail(403, Messages::ACCOUNT_DISABLED);
-        }
-        if ($user->password_hash === null || !password_verify($password, $user->password_hash)) {
-            $this->fail(401, Messages::BAD_CREDENTIALS);
         }
 
         return $this->authResult($user);
@@ -204,7 +233,7 @@ class AuthController extends AppController
                 ->where(['LOWER(email)' => $email])
                 ->first();
             if ($user !== null && $user->status !== 'disabled') {
-                $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+                $code = $this->newResetCode();
                 $resets = $this->fetchTable('EmsPasswordResets');
                 $reset = $resets->saveOrFail($resets->newEntity([
                     'user_id' => $user->id,
@@ -247,7 +276,8 @@ class AuthController extends AppController
         $this->rateLimit('reset_confirm', 5);
         $body = $this->body();
         $email = strtolower(trim((string)($body['email'] ?? '')));
-        $code = trim((string)($body['code'] ?? ''));
+        // Codes are issued uppercase; normalise so case never fails a valid entry.
+        $code = strtoupper(trim((string)($body['code'] ?? '')));
         $password = (string)($body['password'] ?? '');
 
         $user = $email === '' ? null : $this->fetchTable('EmsUsers')->find()
@@ -303,6 +333,24 @@ class AuthController extends AppController
         });
 
         return $this->authResult($user);
+    }
+
+    /**
+     * A single-use password-reset code: 8 chars from an unambiguous uppercase
+     * alphanumeric alphabet (no 0/O, 1/I/L). ~40 bits of entropy — a large jump
+     * over the old 6-digit numeric code — on top of the 5-guess-per-code cap, so
+     * the code is safe against online guessing without a hard lockout.
+     */
+    private function newResetCode(): string
+    {
+        $alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        $max = strlen($alphabet) - 1;
+        $code = '';
+        for ($i = 0; $i < 8; $i++) {
+            $code .= $alphabet[random_int(0, $max)];
+        }
+
+        return $code;
     }
 
     /**
@@ -375,6 +423,9 @@ class AuthController extends AppController
      */
     public function logout(): Response
     {
+        // Cookie-only + SameSite=None → require a trusted Origin so a cross-site
+        // page cannot force-revoke the victim's session (CSRF nuisance logout).
+        $this->assertBrowserOrigin();
         $raw = (string)$this->request->getCookie(self::REFRESH_COOKIE);
         if ($raw !== '') {
             RefreshTokens::revoke($this->fetchTable('EmsRefreshTokens'), $raw, time());

@@ -290,6 +290,25 @@ class AppController extends Controller
     }
 
     /**
+     * Assert the request carries a trusted browser Origin — a CSRF guard for
+     * cookie-authenticated, state-changing endpoints (e.g. logout). The refresh
+     * cookie is SameSite=None, so a cross-site page could otherwise drive these
+     * with the victim's cookie. beforeFilter already 403s a PRESENT non-allowed
+     * Origin; this additionally refuses an ABSENT one, so the SPA's own fetch
+     * (which always sends Origin on a POST) is required. Bearer-authed routes do
+     * not need this — an attacker cannot set the Authorization header cross-site.
+     *
+     * @return void
+     */
+    protected function assertBrowserOrigin(): void
+    {
+        $origin = rtrim($this->request->getHeaderLine('Origin'), '/');
+        if ($origin === '' || !in_array($origin, $this->corsOrigins(), true)) {
+            $this->fail(403, 'This website is not allowed to use the EMS API.');
+        }
+    }
+
+    /**
      * Refuse the request with a contract error (§1.3). The message is shown
      * to the user verbatim.
      *
@@ -317,18 +336,44 @@ class AppController extends Controller
     }
 
     /**
-     * The request's client IP for throttling. Defaults to REMOTE_ADDR — correct
-     * for a direct deployment. A deployment behind a trusted reverse proxy sets
-     * `Ems.trustProxy` true so the real client is read from X-Forwarded-For;
-     * left off by default because a spoofable XFF would let an attacker bypass
-     * every throttle.
+     * The request's client IP for throttling — the key every rate limit counts
+     * per, so its integrity is a security property, not a convenience.
+     *
+     * Behind a reverse proxy the socket peer (REMOTE_ADDR) is the proxy itself,
+     * so keying on it collapses every visitor into ONE bucket: one attacker then
+     * throttles the whole world (availability DoS) and per-client limits stop
+     * isolating anyone. The naive fix — trusting X-Forwarded-For — is worse: XFF
+     * is client-supplied, so an attacker rotates it to mint a fresh bucket per
+     * request and bypasses every throttle.
+     *
+     * `Ems.proxyHops` resolves both: it is the number of TRUSTED proxies in
+     * front of the app. The real client is the XFF entry appended by the
+     * outermost trusted proxy — the Nth from the RIGHT. Everything to its left
+     * is caller-supplied and forgeable, so it is ignored: an attacker can pad
+     * XFF all they like but can never move the trusted tail. 0 (the default) =
+     * no proxy, trust only the socket peer. Set it to the exact hop count for
+     * the deployment (e.g. 1 behind a single load balancer).
      *
      * @return string
      */
     protected function clientIp(): string
     {
-        if (Configure::read('Ems.trustProxy', false)) {
-            $this->request->trustProxy = true;
+        $hops = max(0, (int)Configure::read('Ems.proxyHops', 0));
+        if ($hops > 0) {
+            $forwarded = array_values(array_filter(
+                array_map('trim', explode(',', (string)$this->request->getHeaderLine('X-Forwarded-For'))),
+                static fn(string $ip): bool => $ip !== '',
+            ));
+            $count = count($forwarded);
+            if ($count > 0) {
+                // count === hops → client sent no XFF, the outermost proxy's
+                // entry (index 0) is the real client; extra left entries are the
+                // attacker's padding and fall away as the index moves right.
+                $client = $forwarded[max(0, $count - $hops)];
+                if (filter_var($client, FILTER_VALIDATE_IP) !== false) {
+                    return $client;
+                }
+            }
         }
 
         return $this->request->clientIp() ?: 'unknown';

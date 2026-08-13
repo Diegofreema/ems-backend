@@ -360,7 +360,7 @@ class ExamsController extends AppController
     public function gradesheet(string $id): Response
     {
         $exam = $this->findExam($id);
-        $classGroup = $this->findClass((string)$this->request->getQuery('classId', ''));
+        $classGroup = $this->findClassScoped((string)$this->request->getQuery('classId', ''));
         $subject = (string)$this->request->getQuery('subject', '');
 
         return $this->json($this->academicsEngine()->gradesheet($exam, $classGroup, $subject));
@@ -426,7 +426,7 @@ class ExamsController extends AppController
     public function broadsheet(string $id): Response
     {
         $exam = $this->findExam($id);
-        $classGroup = $this->findClass((string)$this->request->getQuery('classId', ''));
+        $classGroup = $this->findClassScoped((string)$this->request->getQuery('classId', ''));
 
         return $this->json($this->academicsEngine()->broadsheet($exam, $classGroup));
     }
@@ -571,5 +571,20 @@ class ExamsController extends AppController
     private function findClass(string $id): EntityInterface
     {
         return $this->findOr404('EmsClassGroups', $id, Messages::CLASS_NOT_FOUND);
+    }
+
+    /**
+     * Resolve a class within the tenant AND assert the viewer's scope reaches
+     * it (§1.4) — the gradesheet/broadsheet READ counterpart to the
+     * assertClassAccess that the saveGrades WRITE already applies, so a teacher
+     * can never read another class's marks/rankings by passing its id as the
+     * ?classId of an exam they can otherwise see.
+     */
+    private function findClassScoped(string $id): EntityInterface
+    {
+        $group = $this->findClass($id);
+        $this->scope()->assertClassAccess((string)$group->id);
+
+        return $group;
     }
 }

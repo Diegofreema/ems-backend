@@ -59,8 +59,12 @@ return [
      *   origin here; the Vite dev server is http://localhost:5173.
      * - cookieSecure: send the refresh cookie only over HTTPS. Safe to leave on
      *   in local dev — browsers exempt http://localhost from the Secure rule.
-     * - trustProxy: read the client IP from X-Forwarded-For (only enable behind
-     *   a trusted reverse proxy; a spoofable XFF would bypass every throttle).
+     * - trustProxy: trust X-Forwarded-Proto for HTTPS detection (bootstrap.php),
+     *   only behind a terminating proxy.
+     * - proxyHops: number of TRUSTED reverse proxies in front of the app. Sets
+     *   the rate-limit client-IP key: the real client is the Nth X-Forwarded-For
+     *   entry from the right, so a spoofed/padded XFF cannot mint fresh throttle
+     *   buckets. 0 = no proxy; 1 behind a single load balancer.
      */
     'Ems' => [
         'frontendBaseUrl' => rtrim((string)env('EMS_FRONTEND_URL', 'http://localhost:5173'), '/'),
@@ -75,6 +79,7 @@ return [
         ))),
         'cookieSecure' => filter_var(env('EMS_COOKIE_SECURE', true), FILTER_VALIDATE_BOOLEAN),
         'trustProxy' => filter_var(env('EMS_TRUST_PROXY', false), FILTER_VALIDATE_BOOLEAN),
+        'proxyHops' => (int)env('EMS_PROXY_HOPS', 0),
     ],
 
     /*

@@ -818,7 +818,7 @@ check("verified document delete -> 409 'A verified document is part of the stude
 # delete revokes outstanding grants — exercised on a fresh UNVERIFIED upload
 st, h, doc_tmp = req("POST", f"/schools/{school_id}/documents", token=admin_token, body={
     "owner": "student", "ownerId": student1_id, "name": "Disposable note", "type": "other",
-    "contentType": "application/pdf", "sizeBytes": 4, "body": "data:application/pdf;base64,JVBERg=="})
+    "contentType": "application/pdf", "sizeBytes": 5, "body": "data:application/pdf;base64,JVBERi0="})
 doc_tmp_id = doc_tmp["id"]
 st, h, link3 = req("POST", f"/schools/{school_id}/documents/{doc_tmp_id}/link", token=admin_token)
 check("unverified document delete -> 204", req("DELETE", f"/schools/{school_id}/documents/{doc_tmp_id}", token=admin_token)[0] == 204)

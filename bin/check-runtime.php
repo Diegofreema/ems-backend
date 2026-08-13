@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use App\Api\Jwt;
 use Cake\Datasource\ConnectionManager;
 use Pdo\Mysql as PdoMysql;
 
@@ -139,5 +140,18 @@ try {
         get_class($cakeError),
         $cakeError->getMessage(),
     ));
+    exit(1);
+}
+
+// Fail closed on a missing/placeholder/too-weak JWT signing secret. encode() and
+// decode() both route through the same guarded App\Api\Jwt::secret(), so an
+// unusable key means the app can neither mint nor verify a token. Refusing to
+// boot with a clear message beats serving 500s at runtime — or, if a real-looking
+// default is left in place, silently running on a forgeable key.
+try {
+    Jwt::encode(['sub' => 'runtime-probe', 'type' => 'ems'], 60, time());
+    fwrite(STDOUT, "[runtime] JWT signing secret is configured\n");
+} catch (Throwable $jwtError) {
+    fwrite(STDERR, sprintf("[runtime] %s\n", $jwtError->getMessage()));
     exit(1);
 }

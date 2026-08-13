@@ -76,6 +76,53 @@ final class PublicAdmissionsUploadTest extends EmsIntegrationTestCase
         $this->assertSame(1, $this->rowCount('ems_document_objects', []));
     }
 
+    public function testPublicApplicationRejectsBytesThatDoNotMatchTheDeclaredType(): void
+    {
+        // An allow-listed contentType is not proof of allow-listed BYTES: HTML
+        // mislabelled as a PDF must be refused before it is stored (finding #7).
+        $body = 'data:application/pdf;base64,' . base64_encode(
+            '<html><script>alert(document.cookie)</script></html>',
+        );
+
+        $this->post($this->applyPath(), $this->applicationWithDocument([
+            'name' => 'Birth certificate',
+            'type' => 'birth_certificate',
+            'contentType' => 'application/pdf',
+            'sizeBytes' => 10,
+            'body' => $body,
+        ]));
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::FILE_TYPE_REJECTED, $this->responseJson()['message']);
+        $this->assertSame(0, $this->rowCount('ems_documents', ['school_id' => $this->schoolId]));
+        $this->assertSame(0, $this->rowCount('ems_document_objects', []));
+    }
+
+    public function testPublicApplicationRejectsMoreDocumentsThanAllowed(): void
+    {
+        $documents = [];
+        for ($i = 0; $i < 11; $i++) {
+            $documents[] = [
+                'name' => "Document $i",
+                'type' => 'other',
+                'contentType' => 'application/pdf',
+                'sizeBytes' => 5,
+                'body' => 'data:application/pdf;base64,JVBERi0=',
+            ];
+        }
+
+        $this->post($this->applyPath(), [
+            'firstName' => 'Amina',
+            'lastName' => 'Applicant',
+            'documents' => $documents,
+        ]);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::TOO_MANY_DOCUMENTS, $this->responseJson()['message']);
+        $this->assertSame(0, $this->rowCount('ems_admission_applications', ['school_id' => $this->schoolId]));
+        $this->assertSame(0, $this->rowCount('ems_document_objects', []));
+    }
+
     private function applyPath(): string
     {
         return '/api/ems/public/schools/' . $this->schoolId . '/apply';

@@ -138,6 +138,9 @@ final class PaymentSubmissionsController extends AppController
             ->withHeader('Content-Type', (string)$evidence->media_type)
             ->withHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
             ->withHeader('Cache-Control', 'private, no-store')
+            // Never let the browser second-guess the stored (magic-byte-verified)
+            // media type — no MIME sniffing on inline private evidence.
+            ->withHeader('X-Content-Type-Options', 'nosniff')
             ->withStringBody((string)$object->body);
     }
 }

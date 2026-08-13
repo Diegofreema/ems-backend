@@ -118,6 +118,7 @@ final class Messages
     public const FILE_TYPE_REJECTED = 'That file type cannot be accepted. Please send a PDF, JPEG or PNG, up to 2 MB.';
     public const FILE_TOO_LARGE = 'That file is larger than 2 MB. Please send a smaller copy.';
     public const FILE_EMPTY = 'That file is empty.';
+    public const TOO_MANY_DOCUMENTS = 'That is more documents than an application can carry. Please send fewer.';
     public const LINK_EXPIRED = 'This link has expired. Open the document again from the record to get a fresh one.';
     public const LINK_INVALID = 'This link is not valid. Open the document from the record instead.';
     public const LINK_SIGN_IN = 'Sign in to open this document.';

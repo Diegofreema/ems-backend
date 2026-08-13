@@ -114,6 +114,9 @@ class AuthRefreshTest extends EmsIntegrationTestCase
         $v1 = $this->signInCookie();
 
         $this->cookie(self::COOKIE, $v1);
+        // logout now requires a trusted browser Origin (CSRF guard); the SPA's
+        // fetch always sends one.
+        $this->configRequest(['headers' => ['Origin' => 'http://localhost:5173']]);
         $this->post('/api/ems/auth/logout');
         $this->assertResponseCode(204);
         $this->assertSame('', (string)$this->_response->getCookie(self::COOKIE)['value']);
@@ -126,6 +129,28 @@ class AuthRefreshTest extends EmsIntegrationTestCase
     {
         $this->post('/api/ems/auth/refresh');
         $this->assertResponseCode(401);
+    }
+
+    public function testLogoutIsRefusedWithoutATrustedOrigin(): void
+    {
+        // CSRF guard: a cross-site page (or a request with no Origin) cannot
+        // force-revoke the victim's session even while carrying the cookie.
+        $v1 = $this->signInCookie();
+        $this->cookie(self::COOKIE, $v1);
+
+        // No Origin header at all.
+        $this->post('/api/ems/auth/logout');
+        $this->assertResponseCode(403);
+
+        // A cross-site attacker Origin.
+        $this->cookie(self::COOKIE, $v1);
+        $this->configRequest(['headers' => ['Origin' => 'https://attacker.example']]);
+        $this->post('/api/ems/auth/logout');
+        $this->assertResponseCode(403);
+
+        // The session survives the blocked attempts — the cookie still refreshes.
+        $this->postRefresh($v1);
+        $this->assertResponseCode(200);
     }
 
     public function testConfiguredFrontendOriginCanUseCredentialedApi(): void

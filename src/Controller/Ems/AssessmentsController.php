@@ -96,6 +96,10 @@ class AssessmentsController extends AppController
     {
         $examId = (string)$this->request->getQuery('examId', '');
         $classGroupId = (string)$this->request->getQuery('classGroupId', '');
+        // `Assessments.index` is an ALL-tier read; scope it to the viewer's own
+        // classes so a family/out-of-class teacher cannot list another class's
+        // assessment metadata — matching the scoresheet/save writes below.
+        $this->scope()->assertClassAccess($classGroupId);
         $subject = (string)$this->request->getQuery('subject', '');
         $subjectId = $this->requireSubjectId($subject);
 
@@ -137,7 +141,10 @@ class AssessmentsController extends AppController
      */
     public function view(string $id): Response
     {
-        return $this->json(ExamSerializer::assessment($this->findAssessment($id)));
+        $assessment = $this->findAssessment($id);
+        $this->scope()->assertClassAccess((string)$assessment->class_group_id);
+
+        return $this->json(ExamSerializer::assessment($assessment));
     }
 
     /**

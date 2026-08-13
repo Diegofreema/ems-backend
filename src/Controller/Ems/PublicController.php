@@ -22,6 +22,10 @@ class PublicController extends AppController
 {
     protected array $publicActions = ['intake', 'apply'];
 
+    /** Upper bound on files one public application may carry — abuse guard for
+     *  the anonymous intake, well above the form's handful of slots. */
+    private const MAX_APPLICATION_DOCUMENTS = 10;
+
     /**
      * GET /public/apply/{slug} — everything the public form needs; null (200)
      * for an unknown slug, never a 404.
@@ -82,6 +86,13 @@ class PublicController extends AppController
         }
 
         $uploads = is_array($body['documents'] ?? null) ? $body['documents'] : [];
+        // Cap the count before touching any bytes: the public form has a handful
+        // of slots, so a request with hundreds of (individually small) files is
+        // abuse. The web server's body limit bounds total size; this bounds the
+        // count an anonymous caller can push into one transaction.
+        if (count($uploads) > self::MAX_APPLICATION_DOCUMENTS) {
+            $this->fail(422, Messages::TOO_MANY_DOCUMENTS);
+        }
         // Validate every file up front — nothing is written if one is bad.
         foreach ($uploads as $upload) {
             $this->storage()->assertAcceptableUpload(

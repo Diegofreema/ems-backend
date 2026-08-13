@@ -64,8 +64,53 @@ class Storage
     {
         $sizeBytes = $this->uploadBodySize($body);
         $this->assertAcceptable($contentType, $sizeBytes);
+        $this->assertBytesMatchType($contentType, $body);
 
         return $sizeBytes;
+    }
+
+    /**
+     * The declared content type is caller-supplied, so an allow-listed label is
+     * not proof of allow-listed BYTES: an attacker can upload HTML/script (or a
+     * polyglot) as "application/pdf". Sniff the leading magic bytes and require
+     * they match the type — the same defence the payment-evidence path applies
+     * (App\Ems\FinanceSecurity), so a reviewer can never be handed a file whose
+     * bytes disagree with its type.
+     */
+    private function assertBytesMatchType(string $contentType, string $body): void
+    {
+        $magic = $this->leadingBytes($body);
+        $matches = ($contentType === 'application/pdf' && str_starts_with($magic, '%PDF-'))
+            || ($contentType === 'image/png' && str_starts_with($magic, "\x89PNG\r\n\x1a\n"))
+            || ($contentType === 'image/jpeg' && str_starts_with($magic, "\xff\xd8\xff"));
+        if (!$matches) {
+            $this->fail(422, Messages::FILE_TYPE_REJECTED);
+        }
+    }
+
+    /**
+     * Decode just enough of an upload to read its magic number. The EMS browser
+     * sends a `data:` URL, so unwrap that; a bare body is already raw bytes.
+     */
+    private function leadingBytes(string $body, int $length = 8): string
+    {
+        if (!str_starts_with($body, 'data:')) {
+            return substr($body, 0, $length);
+        }
+        $separator = strpos($body, ',');
+        if ($separator === false) {
+            return substr($body, 0, $length);
+        }
+        $header = substr($body, 0, $separator);
+        $payload = substr($body, $separator + 1);
+        if (str_ends_with(strtolower($header), ';base64')) {
+            // ceil(length/3)*4 base64 chars cover `length` decoded bytes.
+            $chunk = substr($payload, 0, (int)ceil($length / 3) * 4);
+
+            return (string)base64_decode($chunk, false);
+        }
+
+        return substr(rawurldecode($payload), 0, $length);
     }
 
     /** Private bucket layout: school_id/entity/entity_id/file_id. */
