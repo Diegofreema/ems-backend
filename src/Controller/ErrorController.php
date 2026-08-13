@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
 
 /**
@@ -23,7 +24,7 @@ use Cake\Event\EventInterface;
  *
  * Controller used by ExceptionRenderer to render error responses.
  */
-class ErrorController extends AppController
+class ErrorController extends Controller
 {
     /**
      * Error rendering must not load the legacy web application's removed

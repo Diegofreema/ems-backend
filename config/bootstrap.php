@@ -32,8 +32,7 @@ require __DIR__ . DIRECTORY_SEPARATOR . 'paths.php';
 require CORE_PATH . 'config' . DS . 'bootstrap.php';
 
 /*
- * Keep the legacy web application and /api/v1 templates working while they
- * are migrated from CakePHP's global helper functions to namespaced ones.
+ * Compatibility helpers required by the retained /api/v1 API.
  */
 require CORE_PATH . 'src' . DS . 'Core' . DS . 'functions_global.php';
 require CORE_PATH . 'src' . DS . 'I18n' . DS . 'functions_global.php';

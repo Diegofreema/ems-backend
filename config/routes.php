@@ -21,7 +21,6 @@
  * @license       https://opensource.org/licenses/mit-license.php MIT License
  */
 
-use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
 
@@ -514,70 +513,3 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
     // Ems\AppController::beforeFilter).
     $builder->connect('/{controller}/**', ['action' => 'index', '_method' => 'OPTIONS']);
 });
-
-$routes->scope('/', function (RouteBuilder $builder) {
-    // Register scoped middleware for in scopes.
-    //$builder->registerMiddleware('csrf', new CsrfProtectionMiddleware([
-    //    'httpOnly' => true,
-  //  ]));
-
-    /*
-     * Apply a middleware to the current route scope.
-     * Requires middleware to be registered through `Application::routes()` with `registerMiddleware()`
-     */
-  //  $builder->applyMiddleware('csrf');
-
-    /*
-     * Here, we are connecting '/' (base path) to a controller called 'Pages',
-     * its action called 'display', and we pass a param to select the view file
-     * to use (in this case, templates/Pages/home.php)...
-     */
-    $builder->connect('/', ['controller' => 'Users', 'action' => 'login', 'home']);
-
-    /*
-     * ...and connect the rest of 'Pages' controller's URLs.
-     */
-    $builder->connect('/pages/*', ['controller' => 'Pages', 'action' => 'display']);
-
-    $builder->scope('/api/admin-attendances', function (RouteBuilder $adminAttendancesRoutes) {
-        $adminAttendancesRoutes->setExtensions(['json']);
-        $adminAttendancesRoutes->connect('/', ['controller' => 'AdminAttendances', 'action' => 'index']);
-        $adminAttendancesRoutes->connect('/index', ['controller' => 'AdminAttendances', 'action' => 'index']);
-        $adminAttendancesRoutes->connect('/report', ['controller' => 'AdminAttendances', 'action' => 'report']);
-        $adminAttendancesRoutes->connect('/print', ['controller' => 'AdminAttendances', 'action' => 'print']);
-        $adminAttendancesRoutes->connect('/export', ['controller' => 'AdminAttendances', 'action' => 'export']);
-    });
-           
-    /*
-     * Connect catchall routes for all controllers.
-     *
-     * The `fallbacks` method is a shortcut for
-     *
-     * ```
-     * $builder->connect('/:controller', ['action' => 'index']);
-     * $builder->connect('/:controller/:action/*', []);
-     * ```
-     *
-     * You can remove these routes once you've connected the
-     * routes you want in your application.
-     */
-    $builder->fallbacks();
-});
-
- $routes->scope('/apis', function (RouteBuilder $routes) {
-            $routes->setExtensions(['json','xml']);
-            $routes->resources('Apis');
-        });
-
-
-/*
- * If you need a different set of middleware or none at all,
- * open new scope and define routes there.
- *
- * ```
- * $routes->scope('/api', function (RouteBuilder $builder) {
- *     // No $builder->applyMiddleware() here.
- *     // Connect API actions here.
- * });
- * ```
- */
