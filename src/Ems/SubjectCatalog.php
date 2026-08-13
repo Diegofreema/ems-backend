@@ -18,10 +18,14 @@ class SubjectCatalog
 {
     use LocatorAwareTrait;
 
-    /** @var array<string, array<string, string>> schoolId => [subjectId => name] */
+    /**
+     * @var array<string, array<string, string>> schoolId => [subjectId => name]
+     */
     private static array $names = [];
 
-    /** @var array<string, array<string, string>> schoolId => [lower(name) => subjectId] */
+    /**
+     * @var array<string, array<string, string>> schoolId => [lower(name) => subjectId]
+     */
     private static array $ids = [];
 
     /** The verbatim refusal when a subject name is not in the catalogue. */

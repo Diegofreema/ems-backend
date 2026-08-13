@@ -40,7 +40,7 @@ class UsersController extends AppController
             array_map([SettingsSerializer::class, 'user'], $rows->toList()),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -212,7 +212,7 @@ class UsersController extends AppController
      * @param string|null $userId Account excluded from uniqueness checks.
      * @param bool $required Whether this action requires a link.
      */
-    private function validatedLinkColumns(string $role, $link, ?string $userId = null, bool $required = true): array
+    private function validatedLinkColumns(string $role, mixed $link, ?string $userId = null, bool $required = true): array
     {
         $columns = [
             'link_kind' => null,

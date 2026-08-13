@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
+use App\Model\Entity\ApiKey;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -71,7 +71,7 @@ class ApiKeysTable extends Table
      * @param string $apiKey Public key.
      * @return \App\Model\Entity\ApiKey|null
      */
-    public function findActiveByKey(string $apiKey): ?\App\Model\Entity\ApiKey
+    public function findActiveByKey(string $apiKey): ?ApiKey
     {
         /** @var \App\Model\Entity\ApiKey|null $entity */
         $entity = $this->find()

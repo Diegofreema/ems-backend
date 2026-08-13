@@ -44,7 +44,7 @@ final class ReportSerializer
     }
 
     /** @param mixed $value */
-    private static function decode($value): array
+    private static function decode(mixed $value): array
     {
         if (is_string($value)) {
             $decoded = json_decode($value, true);

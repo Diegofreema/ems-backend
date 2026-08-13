@@ -63,7 +63,7 @@ class DocumentsController extends AppController
             'document.uploaded',
             'document',
             (string)$document->id,
-            sprintf('Added "%s" to the %s record.', (string)$document->name, $owner === 'student' ? 'student' : 'application')
+            sprintf('Added "%s" to the %s record.', (string)$document->name, $owner === 'student' ? 'student' : 'application'),
         );
 
         return $this->json(DocumentSerializer::one($document), 201);
@@ -97,7 +97,7 @@ class DocumentsController extends AppController
             'document',
             $id,
             sprintf('%s "%s".', $decision === 'verified' ? 'Accepted' : 'Rejected', (string)$document->name),
-            $note !== '' ? $note : null
+            $note !== '' ? $note : null,
         );
 
         return $this->json(DocumentSerializer::one($document));
@@ -117,7 +117,7 @@ class DocumentsController extends AppController
             (string)$document->id,
             (string)$document->storage_path,
             $this->storage()->filenameFor((string)$document->name, (string)$document->content_type),
-            $this->viewer
+            $this->viewer,
         );
 
         return $this->json(DocumentSerializer::signedLink($grant, (string)$document->id));
@@ -137,7 +137,7 @@ class DocumentsController extends AppController
             $this->fail(409, Messages::DOCUMENT_VERIFIED_LOCKED);
         }
 
-        $documents->getConnection()->transactional(function () use ($documents, $document) {
+        $documents->getConnection()->transactional(function () use ($documents, $document): void {
             $this->storage()->removeObject((string)$document->storage_path);
             $this->storage()->revokeGrantsFor((string)$document->storage_path);
             $documents->deleteOrFail($document);
@@ -148,7 +148,7 @@ class DocumentsController extends AppController
             'document.removed',
             'document',
             $id,
-            sprintf('Deleted "%s" and the file behind it.', (string)$document->name)
+            sprintf('Deleted "%s" and the file behind it.', (string)$document->name),
         );
 
         return $this->json(null, 204);

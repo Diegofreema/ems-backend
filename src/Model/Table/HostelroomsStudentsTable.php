@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -13,7 +12,6 @@ use Cake\Validation\Validator;
  *
  * @property \App\Model\Table\HostelroomsTable&\Cake\ORM\Association\BelongsTo $Hostelrooms
  * @property \App\Model\Table\StudentsTable&\Cake\ORM\Association\BelongsTo $Students
- *
  * @method \App\Model\Entity\HostelroomsStudent newEmptyEntity()
  * @method \App\Model\Entity\HostelroomsStudent newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\HostelroomsStudent[] newEntities(array $data, array $options = [])

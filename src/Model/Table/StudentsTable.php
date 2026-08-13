@@ -27,7 +27,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\HostelroomsTable&\Cake\ORM\Association\BelongsToMany $Hostelrooms
  * @property \App\Model\Table\SparentsTable&\Cake\ORM\Association\BelongsToMany $Sparents
  * @property \App\Model\Table\SubjectsTable&\Cake\ORM\Association\BelongsToMany $Subjects
- *
  * @method \App\Model\Entity\Student newEmptyEntity()
  * @method \App\Model\Entity\Student newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Student[] newEntities(array $data, array $options = [])
@@ -83,7 +82,7 @@ class StudentsTable extends Table
         ]);
         $this->belongsTo('Sparents', [
             'foreignKey' => 'sparent_id',
-            'joinType' => 'INNER'
+            'joinType' => 'INNER',
         ]);
         // $this->belongsTo('Levels', [
         //     'foreignKey' => 'level_id',
@@ -200,7 +199,6 @@ class StudentsTable extends Table
             ->requirePresence('dob', 'create')
             ->notEmpty('dob');
 
-
 //        $validator
 //            ->scalar('birthcerturl')
 //            ->maxLength('birthcerturl', 188)
@@ -310,7 +308,7 @@ class StudentsTable extends Table
      * @param array $options The options for the finder
      * @return \Cake\ORM\Query
      */
-    public function findWithFullNames(\Cake\ORM\Query $query, array $options)
+    public function findWithFullNames(Query $query, array $options): Query
     {
         return $query->select(['id', 'fname', 'lname']);
     }

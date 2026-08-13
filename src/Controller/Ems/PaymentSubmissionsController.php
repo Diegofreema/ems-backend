@@ -15,7 +15,7 @@ final class PaymentSubmissionsController extends AppController
     public function index(): Response
     {
         $rows = $this->tenant()->query('EmsPaymentSubmissions')->orderByDesc('created')->all()->toList();
-        $ids = array_map(static fn($r)=>(string)$r->id, $rows);
+        $ids = array_map(static fn($r) => (string)$r->id, $rows);
         $decisions = [];
         $evidence = [];
         if ($ids !== []) {
@@ -41,10 +41,10 @@ final class PaymentSubmissionsController extends AppController
                 ];
             }
         }
-        $items = array_map(fn($r)=>$this->financeSecurity()->submissionWire(
+        $items = array_map(fn($r) => $this->financeSecurity()->submissionWire(
             $r,
             $decisions[(string)$r->id] ?? null,
-            $evidence[(string)$r->id] ?? null
+            $evidence[(string)$r->id] ?? null,
         ), $rows);
 
         return $this->json([
@@ -69,7 +69,7 @@ final class PaymentSubmissionsController extends AppController
             $this->viewer,
             'payment_submission.decide',
             $key,
-            $body + ['id' => $id]
+            $body + ['id' => $id],
         );
         if ($replay !== null) {
             return $this->json($replay['body'], $replay['status']);
@@ -87,7 +87,7 @@ final class PaymentSubmissionsController extends AppController
                 $row,
                 $this->viewer,
                 (string)($body['decision'] ?? ''),
-                trim((string)($body['reason'] ?? ''))
+                trim((string)($body['reason'] ?? '')),
             );
             $this->financeSecurity()->remember(
                 $this->viewer,
@@ -95,7 +95,7 @@ final class PaymentSubmissionsController extends AppController
                 $key,
                 $body + ['id' => $id],
                 200,
-                $result
+                $result,
             );
 
             return $result;

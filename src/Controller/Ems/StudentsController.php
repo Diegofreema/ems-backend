@@ -59,14 +59,14 @@ class StudentsController extends AppController
         $rows = $q->limit($params['pageSize'])
             ->offset(($params['page'] - 1) * $params['pageSize'])
             ->all()->toList();
-        $statuses=$this->feesEngine()->statusesForStudents(array_map(static fn($s)=>(string)$s->id,$rows));
-        $items=array_map(static fn($s)=>StudentSerializer::one($s)+['financeStatus'=>$statuses[(string)$s->id]??'not_invoiced'],$rows);
+        $statuses = $this->feesEngine()->statusesForStudents(array_map(static fn($s) => (string)$s->id, $rows));
+        $items = array_map(static fn($s) => StudentSerializer::one($s) + ['financeStatus' => $statuses[(string)$s->id] ?? 'not_invoiced'], $rows);
 
         return $this->paginated(
             $items,
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -75,8 +75,10 @@ class StudentsController extends AppController
      */
     public function view(string $id): Response
     {
-        $student=$this->findStudent($id);$status=$this->feesEngine()->statusesForStudents([$id]);
-        return $this->json(StudentSerializer::one($student)+['financeStatus'=>$status[$id]??'not_invoiced']);
+        $student = $this->findStudent($id);
+        $status = $this->feesEngine()->statusesForStudents([$id]);
+
+        return $this->json(StudentSerializer::one($student) + ['financeStatus' => $status[$id] ?? 'not_invoiced']);
     }
 
     /**
@@ -140,15 +142,15 @@ class StudentsController extends AppController
         }
 
         $requestedPrimary = array_search(true, array_map(
-            static fn (array $guardian): bool => (bool)($guardian['isPrimary'] ?? false),
-            $guardianInputs
+            static fn(array $guardian): bool => (bool)($guardian['isPrimary'] ?? false),
+            $guardianInputs,
         ), true);
         $primaryIndex = $requestedPrimary === false ? 0 : $requestedPrimary;
         $primary = $guardianInputs[$primaryIndex];
         $studentInput['guardianName'] = trim(sprintf(
             '%s %s',
             (string)($primary['firstName'] ?? ''),
-            (string)($primary['lastName'] ?? '')
+            (string)($primary['lastName'] ?? ''),
         ));
         $studentInput['guardianPhone'] = trim((string)($primary['phone'] ?? ''));
 
@@ -157,7 +159,7 @@ class StudentsController extends AppController
             $students,
             $studentInput,
             $guardianInputs,
-            $primaryIndex
+            $primaryIndex,
         ) {
             $student = $students->saveOrFail($students->newEntity($this->studentData($studentInput)));
             $this->createEnrolmentIfCurrent($student);
@@ -166,7 +168,7 @@ class StudentsController extends AppController
             foreach ($guardianInputs as $index => $guardianInput) {
                 $guardians->saveOrFail($guardians->newEntity(
                     $this->guardianData($guardianInput, (string)$student->id)
-                    + ['is_primary' => $index === $primaryIndex]
+                    + ['is_primary' => $index === $primaryIndex],
                 ));
             }
             $this->syncPrimaryContact((string)$student->id);
@@ -273,7 +275,7 @@ class StudentsController extends AppController
                 $this->demoteOtherPrimaries((string)$student->id, null);
             }
             $guardian = $guardians->saveOrFail($guardians->newEntity(
-                $this->guardianData($body, (string)$student->id) + ['is_primary' => $isPrimary]
+                $this->guardianData($body, (string)$student->id) + ['is_primary' => $isPrimary],
             ));
             $this->syncPrimaryContact((string)$student->id);
 
@@ -316,7 +318,7 @@ class StudentsController extends AppController
         usort($rows, function ($a, $b) {
             return strcmp(
                 $b->session . ' ' . $b->term,
-                $a->session . ' ' . $a->term
+                $a->session . ' ' . $a->term,
             );
         });
 

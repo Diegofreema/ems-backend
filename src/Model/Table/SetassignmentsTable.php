@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -15,7 +14,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\TeachersTable&\Cake\ORM\Association\BelongsTo $Teachers
  * @property \App\Model\Table\SemestersTable&\Cake\ORM\Association\BelongsTo $Semesters
  * @property \App\Model\Table\QuestionsTable&\Cake\ORM\Association\HasMany $Questions
- *
  * @method \App\Model\Entity\Setassignment newEmptyEntity()
  * @method \App\Model\Entity\Setassignment newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Setassignment[] newEntities(array $data, array $options = [])
@@ -61,7 +59,7 @@ class SetassignmentsTable extends Table
         $this->hasMany('Assignments', [
             'foreignKey' => 'setassignment_id',
         ]);
-        
+
         $this->hasMany('Questions', [
             'foreignKey' => 'setassignment_id',
             'dependent' => true,
@@ -146,9 +144,10 @@ class SetassignmentsTable extends Table
                 if ($context['data']['test_type'] === 'cbt_test') {
                     return !empty($value) && $value > 0;
                 }
+
                 return true;
             },
-            'message' => 'Total questions is required for CBT tests'
+            'message' => 'Total questions is required for CBT tests',
         ]);
 
         $validator->add('time_limit', 'cbt_required', [
@@ -156,9 +155,10 @@ class SetassignmentsTable extends Table
                 if ($context['data']['test_type'] === 'cbt_test') {
                     return !empty($value) && $value > 0;
                 }
+
                 return true;
             },
-            'message' => 'Time limit is required for CBT tests'
+            'message' => 'Time limit is required for CBT tests',
         ]);
 
         $validator->add('passing_score', 'cbt_required', [
@@ -166,9 +166,10 @@ class SetassignmentsTable extends Table
                 if ($context['data']['test_type'] === 'cbt_test') {
                     return !empty($value) && $value >= 0;
                 }
+
                 return true;
             },
-            'message' => 'Passing score is required for CBT tests'
+            'message' => 'Passing score is required for CBT tests',
         ]);
 
         return $validator;

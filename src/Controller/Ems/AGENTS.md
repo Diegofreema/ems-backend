@@ -33,7 +33,6 @@ This area implements the React product API under `/api/ems`. It translates authe
 
 * Public auth, admissions, and file routes are intentional exceptions to the usual school path.
 * The refresh token is an httpOnly cookie. The short lived access token is a Bearer token.
-* The older controllers in `src/Controller/Api/` serve `/api/v1` and are not the React product contract.
 
 ## Related specs
 

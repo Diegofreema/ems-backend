@@ -288,7 +288,7 @@ class AuthController extends AppController
         }
 
         $users = $this->fetchTable('EmsUsers');
-        $users->getConnection()->transactional(function () use ($users, $resets, $user, $reset, $password) {
+        $users->getConnection()->transactional(function () use ($users, $resets, $user, $reset, $password): void {
             $reset->used_at = FrozenTime::now(); // single-use: the code is burned
             $resets->saveOrFail($reset);
 
@@ -356,7 +356,7 @@ class AuthController extends AppController
             RefreshTokens::revoke($tokens, $rotated['token'], time());
 
             return $this->clearRefreshCookie(
-                $this->errorResponse(401, 'Your session has expired. Please sign in again.')
+                $this->errorResponse(401, 'Your session has expired. Please sign in again.'),
             );
         }
 

@@ -70,7 +70,7 @@ final class FeeSerializer
         ];
         $schedule = self::decode($s->schedule);
         if (is_array($schedule) && $schedule !== []) {
-            $out['schedule'] = array_values(array_map(static fn ($r) => [
+            $out['schedule'] = array_values(array_map(static fn($r) => [
                 'label' => (string)$r['label'],
                 'dueOn' => (string)$r['dueOn'],
                 'percent' => (int)$r['percent'],
@@ -144,7 +144,7 @@ final class FeeSerializer
         }
         $revisions = self::decode($i->schedule_revisions);
         if (is_array($revisions) && $revisions !== []) {
-            $out['scheduleRevisions'] = array_values(array_map(static fn ($r) => [
+            $out['scheduleRevisions'] = array_values(array_map(static fn($r) => [
                 'revisedOn' => (string)$r['revisedOn'],
                 'revisedBy' => (string)$r['revisedBy'],
                 'agreedWith' => (string)$r['agreedWith'],
@@ -227,7 +227,7 @@ final class FeeSerializer
      * @param mixed $value
      * @return array<int|string, mixed>|null
      */
-    private static function decode($value): ?array
+    private static function decode(mixed $value): ?array
     {
         if ($value === null) {
             return null;

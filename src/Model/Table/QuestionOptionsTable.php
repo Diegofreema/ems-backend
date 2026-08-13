@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Model\Entity\QuestionOption;
 use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
@@ -13,7 +14,6 @@ use Cake\Validation\Validator;
  *
  * @property \App\Model\Table\QuestionsTable&\Cake\ORM\Association\BelongsTo $Questions
  * @property \App\Model\Table\StudentAnswersTable&\Cake\ORM\Association\HasMany $StudentAnswers
- *
  * @method \App\Model\Entity\QuestionOption newEmptyEntity()
  * @method \App\Model\Entity\QuestionOption newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\QuestionOption[] newEntities(array $data, array $options = [])
@@ -106,7 +106,7 @@ class QuestionOptionsTable extends Table
      * @param array $options The options containing question_id
      * @return \Cake\ORM\Query
      */
-    public function findByQuestionId(Query $query, array $options)
+    public function findByQuestionId(Query $query, array $options): Query
     {
         return $query->where(['QuestionOptions.question_id' => $options['question_id']]);
     }
@@ -118,7 +118,7 @@ class QuestionOptionsTable extends Table
      * @param array $options The options containing is_correct
      * @return \Cake\ORM\Query
      */
-    public function findByCorrect(Query $query, array $options)
+    public function findByCorrect(Query $query, array $options): Query
     {
         return $query->where(['QuestionOptions.is_correct' => $options['is_correct']]);
     }
@@ -130,7 +130,7 @@ class QuestionOptionsTable extends Table
      * @param array $options The options containing order_number
      * @return \Cake\ORM\Query
      */
-    public function findByOrder(Query $query, array $options)
+    public function findByOrder(Query $query, array $options): Query
     {
         return $query->where(['QuestionOptions.order_number' => $options['order_number']]);
     }
@@ -141,7 +141,7 @@ class QuestionOptionsTable extends Table
      * @param int $questionId The question ID
      * @return \App\Model\Entity\QuestionOption|null
      */
-    public function getCorrectOption($questionId)
+    public function getCorrectOption(int $questionId): ?QuestionOption
     {
         return $this->find()
             ->where(['question_id' => $questionId, 'is_correct' => true])
@@ -154,7 +154,7 @@ class QuestionOptionsTable extends Table
      * @param int $questionId The question ID
      * @return \Cake\ORM\Query
      */
-    public function getOptionsForQuestion($questionId)
+    public function getOptionsForQuestion(int $questionId): Query
     {
         return $this->find()
             ->where(['question_id' => $questionId])

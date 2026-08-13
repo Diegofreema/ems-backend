@@ -33,7 +33,7 @@ composer cs-check
 
 ## Rules
 
-* Treat the existing web application, `/api/v1`, and `/api/ems` as separate surfaces. Change only the surface in scope.
+* Treat the existing web application and `/api/ems` as separate surfaces. Change only the surface in scope.
 * The React EMS product consumes `/api/ems`. Its wire contract is recorded in `document.md`.
 * Keep every EMS query tenant scoped through `App\Ems\Tenant`. Apply viewer limits through `App\Ems\Scope`.
 * Keep HTTP policy, authentication, CORS, pagination, and error handling in `src/Controller/Ems/AppController.php`.

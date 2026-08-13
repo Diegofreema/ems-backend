@@ -38,6 +38,7 @@ class AssessmentsController extends AppController
     /**
      * GET /assessments — examId, classGroupId, subject → AssessmentSummary[].
      */
+
     /** PUT /assessments/{id} — correct fields while no scores exist. */
     public function edit(string $id): Response
     {
@@ -60,7 +61,7 @@ class AssessmentsController extends AppController
             $row->maximum = (int)round((float)$body['maximum']);
         }
         if (array_key_exists('dueOn', $body)) {
-            $row->due_on = ($body['dueOn'] ?? null) ?: null;
+            $row->due_on = $body['dueOn'] ?? null ?: null;
         }
 
         return $this->json(ExamSerializer::assessment($assessments->saveOrFail($row)));
@@ -173,7 +174,7 @@ class AssessmentsController extends AppController
             'subject' => $subject,
             'name' => $name,
             'maximum' => (int)round((float)$maximum),
-            'due_on' => ($body['dueOn'] ?? null) ?: null,
+            'due_on' => $body['dueOn'] ?? null ?: null,
             'status' => 'draft',
             'created_by' => $this->viewer->name,
             'created_on' => FrozenDate::today(),
@@ -190,8 +191,8 @@ class AssessmentsController extends AppController
                 $name,
                 (int)$assessment->maximum,
                 $this->classNameOf($classGroupId),
-                $subject
-            )
+                $subject,
+            ),
         );
 
         return $this->json(ExamSerializer::assessment($assessment), 201);
@@ -231,9 +232,9 @@ class AssessmentsController extends AppController
                 ucfirst($label),
                 (string)$assessment->name,
                 $this->classNameOf((string)$assessment->class_group_id),
-                (string)$assessment->subject
+                (string)$assessment->subject,
             ),
-            $isReopen && $reason !== '' ? $reason : null
+            $isReopen && $reason !== '' ? $reason : null,
         );
 
         return $this->json(ExamSerializer::assessment($assessment));
@@ -247,7 +248,6 @@ class AssessmentsController extends AppController
         $assessment = $this->findAssessment($id);
         $this->scope()->assertClassAccess((string)$assessment->class_group_id);
 
-        $scores = $this->fetchTable('EmsAssessmentScores');
         $rows = [];
         foreach ($this->roster((string)$assessment->class_group_id) as $student) {
             $row = $this->tenant()->query('EmsAssessmentScores')
@@ -308,7 +308,7 @@ class AssessmentsController extends AppController
         }
 
         $scores = $this->fetchTable('EmsAssessmentScores');
-        $scores->getConnection()->transactional(function () use ($scores, $entries, $id) {
+        $scores->getConnection()->transactional(function () use ($scores, $entries, $id): void {
             foreach ($entries as $entry) {
                 $studentId = (string)($entry['studentId'] ?? '');
                 $score = $entry['score'] ?? null;
@@ -391,6 +391,6 @@ class AssessmentsController extends AppController
      */
     private function rosterIds(string $classGroupId): array
     {
-        return array_map(fn ($s) => (string)$s->id, $this->roster($classGroupId));
+        return array_map(fn($s) => (string)$s->id, $this->roster($classGroupId));
     }
 }

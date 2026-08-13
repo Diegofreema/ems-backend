@@ -14,7 +14,9 @@ use Cake\Http\Exception\HttpException;
  */
 final class RateLimited extends HttpException
 {
-    /** @var int Seconds the caller should wait before retrying. */
+    /**
+     * @var int Seconds the caller should wait before retrying.
+     */
     public int $retryAfter;
 
     public function __construct(int $retryAfter)

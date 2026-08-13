@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Ems;
 
 use Cake\Datasource\EntityInterface;
-use Cake\I18n\FrozenDate;
 use Cake\ORM\Locator\LocatorInterface;
-use Cake\Utility\Text;
+use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * The CSV import engine (document.md §3.17). A file lands in a STAGING batch and
@@ -58,26 +58,40 @@ class Imports
     private const GENDERS = ['female', 'male', 'other'];
     private const RELATIONSHIPS = ['mother', 'father', 'guardian', 'sibling', 'other'];
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var string */
-    private $today;
+    /**
+     * @var string
+     */
+    private string $today;
 
-    /** @var array<int, \Cake\Datasource\EntityInterface>|null Per-request roster snapshot for matching. */
+    /**
+     * @var array<int, \Cake\Datasource\EntityInterface>|null Per-request roster snapshot for matching.
+     */
     private ?array $studentsCache = null;
 
-    /** @var array<int, \Cake\Datasource\EntityInterface>|null */
+    /**
+     * @var array<int, \Cake\Datasource\EntityInterface>|null
+     */
     private ?array $guardiansCache = null;
 
-    /** @var array<int, \Cake\Datasource\EntityInterface>|null */
+    /**
+     * @var array<int, \Cake\Datasource\EntityInterface>|null
+     */
     private ?array $classGroupsCache = null;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
     public function __construct(LocatorInterface $locator, string $schoolId, string $today)
     {
@@ -116,7 +130,7 @@ class Imports
         foreach ($def['columns'] as $c) {
             $lines[] = '# ' . $c['key'] . ($c['required'] ? ' (required)' : ' (optional)') . ' — ' . $c['hint'];
         }
-        $lines[] = implode(',', array_map(fn ($c) => $c['key'], $def['columns']));
+        $lines[] = implode(',', array_map(fn($c) => $c['key'], $def['columns']));
 
         return ['filename' => $kind . '-import-template.csv', 'content' => implode("\n", $lines)];
     }
@@ -193,7 +207,7 @@ class Imports
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
             return false;
         }
-        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, new \DateTimeZone('UTC'));
+        $d = DateTimeImmutable::createFromFormat('!Y-m-d', $value, new DateTimeZone('UTC'));
 
         return $d !== false && $d->format('Y-m-d') === $value;
     }
@@ -207,7 +221,7 @@ class Imports
     public function checkStudentRow(array $values): array
     {
         $issues = [];
-        $require = function (string $key, string $label) use (&$issues, $values) {
+        $require = function (string $key, string $label) use (&$issues, $values): void {
             if (($values[$key] ?? '') === '') {
                 $issues[] = ['column' => $key, 'message' => $label . ' is missing.'];
             }
@@ -239,7 +253,7 @@ class Imports
 
         $class = (string)($values['class_group'] ?? '');
         if ($class !== '') {
-            $known = array_map(fn ($c) => (string)$c->name, $this->classGroups());
+            $known = array_map(fn($c) => (string)$c->name, $this->classGroups());
             if ($known !== [] && !$this->anyMatch($known, $class)) {
                 $issues[] = ['column' => 'class_group', 'message' => sprintf('The school has no class called "%s". Create the class first, or correct the spelling.', $class)];
             }
@@ -265,7 +279,7 @@ class Imports
     public function checkGuardianRow(array $values): array
     {
         $issues = [];
-        $require = function (string $key, string $label) use (&$issues, $values) {
+        $require = function (string $key, string $label) use (&$issues, $values): void {
             if (($values[$key] ?? '') === '') {
                 $issues[] = ['column' => $key, 'message' => $label . ' is missing.'];
             }
@@ -348,7 +362,7 @@ class Imports
                 'score' => $scored['score'], 'reasons' => $scored['reasons'], 'withinFile' => $c['withinFile'],
             ];
         }
-        usort($found, fn ($a, $b) => $b['score'] <=> $a['score']);
+        usort($found, fn($a, $b) => $b['score'] <=> $a['score']);
 
         return array_slice($found, 0, 3);
     }
@@ -402,7 +416,7 @@ class Imports
                 'withinFile' => true,
             ];
         }
-        usort($found, fn ($a, $b) => $b['score'] <=> $a['score']);
+        usort($found, fn($a, $b) => $b['score'] <=> $a['score']);
 
         return array_slice($found, 0, 3);
     }
@@ -411,7 +425,7 @@ class Imports
 
     public function nextAdmissionNumber(): string
     {
-        $existing = array_map(fn ($s) => (string)$s->admission_number, $this->students());
+        $existing = array_map(fn($s) => (string)$s->admission_number, $this->students());
         $prefix = $existing === [] ? 'ADM' : preg_replace('#/[^/]*$#', '', $existing[0]);
         $highest = 0;
         foreach ($existing as $number) {
@@ -457,7 +471,7 @@ class Imports
     public function mergeStudent(EntityInterface $existing, array $values): array
     {
         $changed = [];
-        $apply = function (string $col, string $incoming, string $label) use (&$changed, $existing) {
+        $apply = function (string $col, string $incoming, string $label) use (&$changed, $existing): void {
             if ($incoming === '') {
                 return;
             }
@@ -536,7 +550,7 @@ class Imports
     public function mergeGuardian(EntityInterface $existing, array $values): array
     {
         $changed = [];
-        $apply = function (string $col, string $incoming, string $label) use (&$changed, $existing) {
+        $apply = function (string $col, string $incoming, string $label) use (&$changed, $existing): void {
             if ($incoming === '') {
                 return;
             }

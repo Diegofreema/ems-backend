@@ -85,7 +85,7 @@ class ExamLifecycleTest extends EmsIntegrationTestCase
         $this->assertResponseCode(409);
         $this->assertSame(
             'Only a draft or scheduled examination can start grading.',
-            $this->responseJson()['message']
+            $this->responseJson()['message'],
         );
     }
 
@@ -111,7 +111,7 @@ class ExamLifecycleTest extends EmsIntegrationTestCase
         $this->assertResponseCode(403);
         $this->assertSame(
             'A teacher cannot start grading — that needs the academic lead.',
-            $this->responseJson()['message']
+            $this->responseJson()['message'],
         );
         // The gate fired before the action: the exam is untouched.
         $this->assertTrue($this->rowExists('ems_exams', ['id' => $id, 'status' => 'draft']));

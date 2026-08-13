@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-
 /**
  * EMS contract table `ems_campuses`. Explicit setTable() so the class can
  * never be conflated with a legacy `tss` table of a similar name.

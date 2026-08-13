@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -13,7 +12,6 @@ use Cake\Validation\Validator;
  *
  * @property \App\Model\Table\QuizzesTable&\Cake\ORM\Association\BelongsTo $Quizzes
  * @property \App\Model\Table\AttemptedquizzesTable&\Cake\ORM\Association\HasMany $Attemptedquizzes
- *
  * @method \App\Model\Entity\Quizquestion newEmptyEntity()
  * @method \App\Model\Entity\Quizquestion newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Quizquestion[] newEntities(array $data, array $options = [])

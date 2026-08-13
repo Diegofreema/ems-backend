@@ -9,6 +9,7 @@ use App\Ems\Serializer\ImportSerializer;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
+use Cake\ORM\Table;
 
 /**
  * Staged CSV imports (document.md §3.17). Administrator/registrar only. A file
@@ -35,8 +36,7 @@ class ImportsController extends AppController
     {
         $params = $this->pageParams();
         $rows = $this->tenant()->query('EmsImportBatches')->all()->toList();
-        usort($rows, fn ($a, $b) =>
-            strcmp((string)$b->uploaded_on, (string)$a->uploaded_on)
+        usort($rows, fn($a, $b) => strcmp((string)$b->uploaded_on, (string)$a->uploaded_on)
             ?: strcmp((string)$b->id, (string)$a->id));
 
         $total = count($rows);
@@ -46,7 +46,7 @@ class ImportsController extends AppController
             array_map([ImportSerializer::class, 'batch'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -75,7 +75,7 @@ class ImportsController extends AppController
             $this->fail(422, Messages::IMPORT_NO_HEADING);
         }
         $definition = Imports::DEFINITIONS[$kind];
-        $expected = array_map(fn ($c) => $c['key'], $definition['columns']);
+        $expected = array_map(fn($c) => $c['key'], $definition['columns']);
         $missing = [];
         foreach ($definition['columns'] as $c) {
             if ($c['required'] && !in_array($c['key'], $parsed['header'], true)) {
@@ -89,7 +89,7 @@ class ImportsController extends AppController
             $this->fail(422, Messages::IMPORT_NO_RECORDS);
         }
 
-        $ignored = array_values(array_filter($parsed['header'], fn ($h) => $h !== '' && !in_array($h, $expected, true)));
+        $ignored = array_values(array_filter($parsed['header'], fn($h) => $h !== '' && !in_array($h, $expected, true)));
         $batches = $this->fetchTable('EmsImportBatches');
         $batch = $batches->newEntity([
             'school_id' => $this->viewer->schoolId,
@@ -212,7 +212,7 @@ class ImportsController extends AppController
             $this->fail(422, sprintf(
                 '%d %s a decision before this file can be committed.',
                 $undecided,
-                $undecided === 1 ? 'row still needs' : 'rows still need'
+                $undecided === 1 ? 'row still needs' : 'rows still need',
             ));
         }
 
@@ -225,93 +225,121 @@ class ImportsController extends AppController
         // leave a half-imported batch, with some rows written to the register
         // but the batch still stuck in review.
         $this->fetchTable('EmsImportBatches')->getConnection()->transactional(
-            function () use ($rows, $rowsTable, $kind, $engine, $batch, &$result) {
-        foreach ($rows as $row) {
-            $values = $this->decode($row->row_values);
-            if ((string)$row->row_check === 'invalid') {
-                $this->stampRow($rowsTable, $row, 'rejected', 'Left out because of the errors above.');
-                $result['rejected']++;
-                continue;
-            }
-            if ((string)$row->decision === 'skip') {
-                $this->stampRow($rowsTable, $row, 'skipped', 'Left out on review.');
-                $result['skipped']++;
-                continue;
-            }
-            if ((string)$row->decision === 'merge' && (string)$row->merge_target_id !== '') {
-                $targetId = (string)$row->merge_target_id;
-                if ($kind === 'students') {
-                    $existing = $this->tenant()->query('EmsStudents')
-                        ->where(['id' => $targetId])->first();
-                    if ($existing === null) {
-                        $this->stampRow($rowsTable, $row, 'rejected', 'The record it was to be merged into no longer exists.');
+            function () use ($rows, $rowsTable, $kind, $engine, $batch, &$result): void {
+                foreach ($rows as $row) {
+                    $values = $this->decode($row->row_values);
+                    if ((string)$row->row_check === 'invalid') {
+                        $this->stampRow($rowsTable, $row, 'rejected', 'Left out because of the errors above.');
                         $result['rejected']++;
                         continue;
                     }
-                    $changed = $engine->mergeStudent($existing, $values);
-                    $note = $changed === []
-                        ? sprintf('Matched %s %s; nothing needed changing.', (string)$existing->first_name, (string)$existing->last_name)
-                        : sprintf('Updated %s %s: changed %s.', (string)$existing->first_name, (string)$existing->last_name, implode('; ', $changed));
-                    $this->stampRow($rowsTable, $row, 'merged', $note, (string)$existing->id);
-                    $this->audit()->log(
-                        $this->viewer, 'import.merged', 'student', (string)$existing->id,
-                        sprintf('Merged row %d of %s into %s %s (%s). The existing record was kept and its identifier is unchanged.',
-                            (int)$row->line_number, (string)$batch->filename, (string)$existing->first_name, (string)$existing->last_name, (string)$existing->admission_number),
-                        $this->firstReason($row)
-                    );
-                } else {
-                    $existing = $this->tenant()->query('EmsGuardians')
-                        ->where(['id' => $targetId])->first();
-                    if ($existing === null) {
-                        $this->stampRow($rowsTable, $row, 'rejected', 'The record it was to be merged into no longer exists.');
-                        $result['rejected']++;
+                    if ((string)$row->decision === 'skip') {
+                        $this->stampRow($rowsTable, $row, 'skipped', 'Left out on review.');
+                        $result['skipped']++;
                         continue;
                     }
-                    $changed = $engine->mergeGuardian($existing, $values);
-                    $note = $changed === []
-                        ? sprintf('Matched %s %s; nothing needed changing.', (string)$existing->first_name, (string)$existing->last_name)
-                        : sprintf('Updated %s %s: changed %s.', (string)$existing->first_name, (string)$existing->last_name, implode('; ', $changed));
-                    $this->stampRow($rowsTable, $row, 'merged', $note, (string)$existing->id);
-                    $this->audit()->log(
-                        $this->viewer, 'import.merged', 'guardian', (string)$existing->id,
-                        sprintf('Merged row %d of %s into the guardian record for %s %s. The existing record was kept and its identifier is unchanged.',
-                            (int)$row->line_number, (string)$batch->filename, (string)$existing->first_name, (string)$existing->last_name),
-                        $this->firstReason($row)
-                    );
+                    if ((string)$row->decision === 'merge' && (string)$row->merge_target_id !== '') {
+                        $targetId = (string)$row->merge_target_id;
+                        if ($kind === 'students') {
+                            $existing = $this->tenant()->query('EmsStudents')
+                                ->where(['id' => $targetId])->first();
+                            if ($existing === null) {
+                                $this->stampRow($rowsTable, $row, 'rejected', 'The record it was to be merged into no longer exists.');
+                                $result['rejected']++;
+                                continue;
+                            }
+                            $changed = $engine->mergeStudent($existing, $values);
+                            $note = $changed === []
+                                ? sprintf('Matched %s %s; nothing needed changing.', (string)$existing->first_name, (string)$existing->last_name)
+                                : sprintf('Updated %s %s: changed %s.', (string)$existing->first_name, (string)$existing->last_name, implode('; ', $changed));
+                            $this->stampRow($rowsTable, $row, 'merged', $note, (string)$existing->id);
+                            $this->audit()->log(
+                                $this->viewer,
+                                'import.merged',
+                                'student',
+                                (string)$existing->id,
+                                sprintf(
+                                    'Merged row %d of %s into %s %s (%s). The existing record was kept and its identifier is unchanged.',
+                                    (int)$row->line_number,
+                                    (string)$batch->filename,
+                                    (string)$existing->first_name,
+                                    (string)$existing->last_name,
+                                    (string)$existing->admission_number,
+                                ),
+                                $this->firstReason($row),
+                            );
+                        } else {
+                            $existing = $this->tenant()->query('EmsGuardians')
+                                ->where(['id' => $targetId])->first();
+                            if ($existing === null) {
+                                $this->stampRow($rowsTable, $row, 'rejected', 'The record it was to be merged into no longer exists.');
+                                $result['rejected']++;
+                                continue;
+                            }
+                            $changed = $engine->mergeGuardian($existing, $values);
+                            $note = $changed === []
+                                ? sprintf('Matched %s %s; nothing needed changing.', (string)$existing->first_name, (string)$existing->last_name)
+                                : sprintf('Updated %s %s: changed %s.', (string)$existing->first_name, (string)$existing->last_name, implode('; ', $changed));
+                            $this->stampRow($rowsTable, $row, 'merged', $note, (string)$existing->id);
+                            $this->audit()->log(
+                                $this->viewer,
+                                'import.merged',
+                                'guardian',
+                                (string)$existing->id,
+                                sprintf(
+                                    'Merged row %d of %s into the guardian record for %s %s. The existing record was kept and its identifier is unchanged.',
+                                    (int)$row->line_number,
+                                    (string)$batch->filename,
+                                    (string)$existing->first_name,
+                                    (string)$existing->last_name,
+                                ),
+                                $this->firstReason($row),
+                            );
+                        }
+                        $result['merged']++;
+                        continue;
+                    }
+
+                    // Create.
+                    if ($kind === 'students') {
+                        $student = $engine->createStudent($values);
+                        $this->stampRow($rowsTable, $row, 'created', sprintf('Added as %s.', (string)$student->admission_number), (string)$student->id);
+                    } else {
+                        $guardian = $engine->createGuardian($values);
+                        if ($guardian === null) {
+                            $this->stampRow($rowsTable, $row, 'rejected', 'The student on this row is no longer on the register.');
+                            $result['rejected']++;
+                            continue;
+                        }
+                        $note = (bool)$guardian->is_primary ? 'Added as the first contact for this student.' : 'Added as an additional contact.';
+                        $this->stampRow($rowsTable, $row, 'created', $note, (string)$guardian->id);
+                    }
+                    $result['created']++;
                 }
-                $result['merged']++;
-                continue;
-            }
 
-            // Create.
-            if ($kind === 'students') {
-                $student = $engine->createStudent($values);
-                $this->stampRow($rowsTable, $row, 'created', sprintf('Added as %s.', (string)$student->admission_number), (string)$student->id);
-            } else {
-                $guardian = $engine->createGuardian($values);
-                if ($guardian === null) {
-                    $this->stampRow($rowsTable, $row, 'rejected', 'The student on this row is no longer on the register.');
-                    $result['rejected']++;
-                    continue;
-                }
-                $note = (bool)$guardian->is_primary ? 'Added as the first contact for this student.' : 'Added as an additional contact.';
-                $this->stampRow($rowsTable, $row, 'created', $note, (string)$guardian->id);
-            }
-            $result['created']++;
-        }
+                $batch->status = 'committed';
+                $batch->committed_on = FrozenDate::today();
+                $batch->result = $result;
+                $this->fetchTable('EmsImportBatches')->saveOrFail($batch);
 
-        $batch->status = 'committed';
-        $batch->committed_on = FrozenDate::today();
-        $batch->result = $result;
-        $this->fetchTable('EmsImportBatches')->saveOrFail($batch);
-
-        $this->audit()->log(
-            $this->viewer, 'import.committed', 'import', (string)$batch->id,
-            sprintf('Imported %s (%d %s of %s): %d created, %d merged into existing records, %d skipped on review, %d rejected for errors.',
-                (string)$batch->filename, (int)$batch->source_row_count, (int)$batch->source_row_count === 1 ? 'row' : 'rows',
-                (string)$batch->kind, $result['created'], $result['merged'], $result['skipped'], $result['rejected'])
-        );
-            }
+                $this->audit()->log(
+                    $this->viewer,
+                    'import.committed',
+                    'import',
+                    (string)$batch->id,
+                    sprintf(
+                        'Imported %s (%d %s of %s): %d created, %d merged into existing records, %d skipped on review, %d rejected for errors.',
+                        (string)$batch->filename,
+                        (int)$batch->source_row_count,
+                        (int)$batch->source_row_count === 1 ? 'row' : 'rows',
+                        (string)$batch->kind,
+                        $result['created'],
+                        $result['merged'],
+                        $result['skipped'],
+                        $result['rejected'],
+                    ),
+                );
+            },
         );
 
         return $this->json($this->preview($batch));
@@ -329,8 +357,11 @@ class ImportsController extends AppController
         $this->fetchTable('EmsImportRows')->deleteAll(['school_id' => $this->viewer->schoolId, 'batch_id' => $batchId]);
 
         $this->audit()->log(
-            $this->viewer, 'import.discarded', 'import', (string)$batch->id,
-            sprintf('Discarded %s without importing any of its %d rows.', (string)$batch->filename, (int)$batch->source_row_count)
+            $this->viewer,
+            'import.discarded',
+            'import',
+            (string)$batch->id,
+            sprintf('Discarded %s without importing any of its %d rows.', (string)$batch->filename, (int)$batch->source_row_count),
         );
 
         return $this->response->withStatus(204);
@@ -359,7 +390,7 @@ class ImportsController extends AppController
         ];
     }
 
-    private function stampRow($table, EntityInterface $row, string $outcome, string $note, ?string $resultId = null): void
+    private function stampRow(Table $table, EntityInterface $row, string $outcome, string $note, ?string $resultId = null): void
     {
         $row->outcome = $outcome;
         $row->outcome_note = $note;
@@ -377,7 +408,7 @@ class ImportsController extends AppController
     }
 
     /** @param mixed $value */
-    private function decode($value): array
+    private function decode(mixed $value): array
     {
         if (is_string($value)) {
             $decoded = json_decode($value, true);

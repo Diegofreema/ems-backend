@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -13,7 +12,6 @@ use Cake\Validation\Validator;
  *
  * @property \App\Model\Table\AdminsTable&\Cake\ORM\Association\BelongsTo $Admins
  * @property \App\Model\Table\PrivilegesTable&\Cake\ORM\Association\BelongsTo $Privileges
- *
  * @method \App\Model\Entity\AdminsPrivilege newEmptyEntity()
  * @method \App\Model\Entity\AdminsPrivilege newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\AdminsPrivilege[] newEntities(array $data, array $options = [])

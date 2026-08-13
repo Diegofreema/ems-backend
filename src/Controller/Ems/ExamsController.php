@@ -56,7 +56,7 @@ class ExamsController extends AppController
             array_map([ExamSerializer::class, 'exam'], $rows->toList()),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -93,6 +93,7 @@ class ExamsController extends AppController
     /**
      * GET /exams/{id}/schedules — date → startTime → level → subject.
      */
+
     /**
      * PUT /exams/{id} — correct title/dates/config until the exam is released.
      * Status is deliberately NOT editable here: the lifecycle only moves through
@@ -146,7 +147,7 @@ class ExamsController extends AppController
             'exam.grading_started',
             'exam',
             $id,
-            sprintf('Started grading %s %s', (string)$exam->title, (string)$exam->session)
+            sprintf('Started grading %s %s', (string)$exam->title, (string)$exam->session),
         );
 
         return $this->json(ExamSerializer::exam($exam));
@@ -260,7 +261,7 @@ class ExamsController extends AppController
 
         $bankRows = $this->tenant()->query('EmsQuestions')
             ->where(['subject_id' => $subjectId])
-            ->orderByAsc('type')     // objective before theory
+            ->orderByAsc('type') // objective before theory
             ->orderByAsc('marks')
             ->orderByAsc('topic')
             ->all()
@@ -384,7 +385,7 @@ class ExamsController extends AppController
         $entries = is_array($this->body()['entries'] ?? null) ? $this->body()['entries'] : [];
 
         $grades = $this->fetchTable('EmsExamGrades');
-        $grades->getConnection()->transactional(function () use ($grades, $entries, $id, $classId, $subjectId, $caBacked) {
+        $grades->getConnection()->transactional(function () use ($grades, $entries, $id, $classId, $subjectId, $caBacked): void {
             foreach ($entries as $entry) {
                 $studentId = (string)($entry['studentId'] ?? '');
                 $ca = array_key_exists('ca', $entry) ? $entry['ca'] : null;
@@ -500,11 +501,11 @@ class ExamsController extends AppController
             'released_by' => $this->viewer->name,
             'status' => 'released',
             'scheme_version' => $schemeVersion,
-            'reason' => ($prior > 0 && $reason !== '') ? $reason : null,
+            'reason' => $prior > 0 && $reason !== '' ? $reason : null,
         ], ['validate' => false]);
 
         $exams = $this->fetchTable('EmsExams');
-        $releases->getConnection()->transactional(function () use ($releases, $release, $exams, $exam) {
+        $releases->getConnection()->transactional(function () use ($releases, $release, $exams, $exam): void {
             $releases->saveOrFail($release);
             $exam->status = 'published';
             $exams->saveOrFail($exam);
@@ -514,7 +515,7 @@ class ExamsController extends AppController
             'results.released',
             'exam',
             $id,
-            sprintf('Released %s %s results (version %d)', (string)$exam->title, (string)$exam->session, $version)
+            sprintf('Released %s %s results (version %d)', (string)$exam->title, (string)$exam->session, $version),
         );
 
         return $this->json(ExamSerializer::release($release));
@@ -539,7 +540,7 @@ class ExamsController extends AppController
         $current = $this->tenant()->query('EmsResultReleases')
             ->where(['exam_id' => $id, 'status' => 'released'])
             ->first();
-        $releases->getConnection()->transactional(function () use ($releases, $current, $exams, $exam) {
+        $releases->getConnection()->transactional(function () use ($releases, $current, $exams, $exam): void {
             if ($current !== null) {
                 $current->status = 'superseded';
                 $current->superseded_on = FrozenTime::now('UTC');
@@ -554,7 +555,7 @@ class ExamsController extends AppController
             'exam',
             $id,
             sprintf('Reopened %s %s results for correction', (string)$exam->title, (string)$exam->session),
-            $reason
+            $reason,
         );
 
         return $this->json(ExamSerializer::exam($exam));

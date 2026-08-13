@@ -34,11 +34,15 @@ use Cake\ORM\Table;
  */
 final class Tenant
 {
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    public $schoolId;
+    /**
+     * @var string
+     */
+    public string $schoolId;
 
     public function __construct(LocatorInterface $locator, string $schoolId)
     {

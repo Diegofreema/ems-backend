@@ -21,21 +21,34 @@ use Cake\ORM\Locator\LocatorInterface;
  */
 class Fees
 {
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var string YYYY-MM-DD */
-    private $today;
+    /**
+     * @var string YYYY-MM-DD
+     */
+    private string $today;
 
-    /** @var array<string, int>|null memoized net-paid-per-invoice map */
-    private $netPaid = null;
+    /**
+     * @var array<string, int>|null memoized net-paid-per-invoice map
+     */
+    private ?array $netPaid = null;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
+    /**
+     * @param \Cake\ORM\Locator\LocatorInterface $locator Table locator for tenant-scoped reads.
+     */
     public function __construct(LocatorInterface $locator, string $schoolId, string $today)
     {
         $this->locator = $locator;
@@ -113,15 +126,57 @@ class Fees
     /** Batched student status; callers never accept this value on writes. */
     public function statusesForStudents(array $studentIds): array
     {
-        $studentIds=array_values(array_unique(array_filter(array_map('strval',$studentIds))));
-        if($studentIds===[]) return [];
-        $invoices=$this->tenant()->query('EmsInvoices')->select(['id','student_id','total','due_date','status'])->where(['student_id IN'=>$studentIds])->all()->toList();
-        $invoiceIds=array_map(static fn($i)=>(string)$i->id,$invoices);$paid=[];$pending=[];
-        if($invoiceIds!==[]){foreach($this->tenant()->query('EmsFinanceLedgerEvents')->select(['invoice_id','amount'])->where(['invoice_id IN'=>$invoiceIds])->all() as $e)$paid[(string)$e->invoice_id]=($paid[(string)$e->invoice_id]??0)+(int)$e->amount;
-            $decided=[];foreach($this->tenant()->query('EmsFinanceDecisions')->select(['request_id'])->where(['request_type'=>'payment_submission'])->all() as $d)$decided[(string)$d->request_id]=true;
-            foreach($this->tenant()->query('EmsPaymentSubmissions')->select(['id','student_id'])->where(['invoice_id IN'=>$invoiceIds])->all() as $s)if(!isset($decided[(string)$s->id]))$pending[(string)$s->student_id]=true;}
-        $groups=[];foreach($invoices as $i)if((string)$i->status!=='cancelled')$groups[(string)$i->student_id][]=$i;
-        $out=[];foreach($studentIds as $studentId){$rows=$groups[$studentId]??[];if($rows===[]){$out[$studentId]='not_invoiced';continue;}$hasBalance=false;$part=false;$overdue=false;foreach($rows as $i){$p=$paid[(string)$i->id]??0;$balance=(int)$i->total-$p;if($balance>0){$hasBalance=true;if($p>0)$part=true;if((string)$i->due_date<$this->today)$overdue=true;}}$out[$studentId]=$overdue?'overdue':(isset($pending[$studentId])?'pending_verification':($part?'part_paid':($hasBalance?'unpaid':'clear')));}
+        $studentIds = array_values(array_unique(array_filter(array_map('strval', $studentIds))));
+        if ($studentIds === []) {
+            return [];
+        }
+        $invoices = $this->tenant()->query('EmsInvoices')->select(['id','student_id','total','due_date','status'])->where(['student_id IN' => $studentIds])->all()->toList();
+        $invoiceIds = array_map(static fn($i) => (string)$i->id, $invoices);
+        $paid = [];
+        $pending = [];
+        if ($invoiceIds !== []) {
+            foreach ($this->tenant()->query('EmsFinanceLedgerEvents')->select(['invoice_id','amount'])->where(['invoice_id IN' => $invoiceIds])->all() as $e) {
+                $paid[(string)$e->invoice_id] = ($paid[(string)$e->invoice_id] ?? 0) + (int)$e->amount;
+            }
+            $decided = [];
+            foreach ($this->tenant()->query('EmsFinanceDecisions')->select(['request_id'])->where(['request_type' => 'payment_submission'])->all() as $d) {
+                $decided[(string)$d->request_id] = true;
+            }
+            foreach ($this->tenant()->query('EmsPaymentSubmissions')->select(['id','student_id'])->where(['invoice_id IN' => $invoiceIds])->all() as $s) {
+                if (!isset($decided[(string)$s->id])) {
+                    $pending[(string)$s->student_id] = true;
+                }
+            }
+        }
+        $groups = [];
+        foreach ($invoices as $i) {
+            if ((string)$i->status !== 'cancelled') {
+                $groups[(string)$i->student_id][] = $i;
+            }
+        }
+        $out = [];
+        foreach ($studentIds as $studentId) {
+            $rows = $groups[$studentId] ?? [];
+            if ($rows === []) {
+                $out[$studentId] = 'not_invoiced';
+                continue;
+            }$hasBalance = false;
+            $part = false;
+            $overdue = false;
+            foreach ($rows as $i) {
+                $p = $paid[(string)$i->id] ?? 0;
+                $balance = (int)$i->total - $p;
+                if ($balance > 0) {
+                    $hasBalance = true;
+                    if ($p > 0) {
+                        $part = true;
+                    }if ((string)$i->due_date < $this->today) {
+                        $overdue = true;
+                    }
+                }
+            }$out[$studentId] = $overdue ? 'overdue' : (isset($pending[$studentId]) ? 'pending_verification' : ($part ? 'part_paid' : ($hasBalance ? 'unpaid' : 'clear')));
+        }
+
         return $out;
     }
 
@@ -239,7 +294,7 @@ class Fees
             'charged' => $charged,
             'awarded' => $awarded,
             'total' => $charged + $awarded,
-            'applied' => array_values(array_map(static fn ($a) => [
+            'applied' => array_values(array_map(static fn($a) => [
                 'award' => $a['award'],
                 'amount' => (int)$a['amount'],
                 'base' => (int)$a['base'],
@@ -285,10 +340,10 @@ class Fees
         if ($sum !== $total) {
             throw new HttpException(
                 sprintf(Messages::INSTALMENT_SUM_MISMATCH, Money::formatCurrency($sum), Money::formatCurrency($total)),
-                422
+                422,
             );
         }
-        usort($cleaned, static fn ($a, $b) => strcmp((string)$a['dueOn'], (string)$b['dueOn']));
+        usort($cleaned, static fn($a, $b) => strcmp((string)$a['dueOn'], (string)$b['dueOn']));
         $out = [];
         foreach ($cleaned as $i => $r) {
             $label = trim((string)$r['label']);
@@ -313,12 +368,12 @@ class Fees
             ->where(['invoice_id' => $id])
             ->all()
             ->toList();
-        usort($payments, static fn ($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
+        usort($payments, static fn($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
         $refunds = $this->tenant()->query('EmsRefunds')
             ->where(['invoice_id' => $id])
             ->all()
             ->toList();
-        usort($refunds, static fn ($a, $b) => strcmp((string)$b->requested_on, (string)$a->requested_on));
+        usort($refunds, static fn($a, $b) => strcmp((string)$b->requested_on, (string)$a->requested_on));
 
         return $this->enrich($invoice) + [
             'payments' => array_map([FeeSerializer::class, 'payment'], $payments),
@@ -335,6 +390,7 @@ class Fees
             throw new HttpException(Messages::RECEIPT_NOT_FOUND, 404);
         }
         $snapshot = is_string($receipt->snapshot) ? json_decode($receipt->snapshot, true) : $receipt->snapshot;
+
         return ['payment' => FeeSerializer::payment($payment), 'invoice' => FeeSerializer::invoice($invoice),
             'paidToDate' => (int)$receipt->paid_to_date, 'balanceAfter' => (int)$receipt->balance_after,
             'snapshot' => (array)$snapshot, 'issuedAt' => (string)$receipt->issued_at];
@@ -348,14 +404,14 @@ class Fees
             ->where(['student_id' => $studentId])
             ->all()
             ->toList();
-        $invoices = array_map(fn ($i) => $this->enrich($i), $invoiceRows);
-        usort($invoices, static fn ($a, $b) => strcmp((string)$b['issuedOn'], (string)$a['issuedOn']));
+        $invoices = array_map(fn($i) => $this->enrich($i), $invoiceRows);
+        usort($invoices, static fn($a, $b) => strcmp((string)$b['issuedOn'], (string)$a['issuedOn']));
 
         $paymentRows = $this->tenant()->query('EmsPayments')
             ->where(['student_id' => $studentId])
             ->all()
             ->toList();
-        usort($paymentRows, static fn ($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
+        usort($paymentRows, static fn($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
 
         $totalInvoiced = 0;
         foreach ($invoices as $i) {
@@ -381,8 +437,7 @@ class Fees
                 $awards[] = $a;
             }
         }
-        usort($awards, static fn ($a, $b) =>
-            strcmp((string)$a->status, (string)$b->status)
+        usort($awards, static fn($a, $b) => strcmp((string)$a->status, (string)$b->status)
             ?: strcmp((string)$b->awarded_on, (string)$a->awarded_on));
 
         return [
@@ -399,12 +454,52 @@ class Fees
         ];
     }
 
+    /**
+     * @param array<string, mixed> $conditions Tenant-scoped submission filters.
+     * @return array<int, array<string, mixed>>
+     */
     private function paymentSubmissions(array $conditions): array
     {
-        $rows=$this->tenant()->query('EmsPaymentSubmissions')->where($conditions)->orderByDesc('created')->all()->toList();
-        if($rows===[])return[];$ids=array_map(static fn($r)=>(string)$r->id,$rows);$decisions=[];
-        foreach($this->tenant()->query('EmsFinanceDecisions')->where(['request_type'=>'payment_submission','request_id IN'=>$ids])->all() as $d)$decisions[(string)$d->request_id]=$d;
-        return array_map(static function($r)use($decisions){$d=$decisions[(string)$r->id]??null;$out=['id'=>(string)$r->id,'invoiceId'=>(string)$r->invoice_id,'studentId'=>(string)$r->student_id,'amount'=>(int)$r->amount,'method'=>(string)$r->method,'payerName'=>(string)$r->payer_name,'payerRelationship'=>(string)$r->payer_relationship,'receivedOn'=>(string)$r->received_on,'recordedBy'=>(string)$r->recorded_by_name,'status'=>$d?(string)$d->decision:'pending'];if($r->normalized_reference)$out['reference']=(string)$r->normalized_reference;if($r->cash_acknowledgement)$out['cashAcknowledgement']=(string)$r->cash_acknowledgement;return$out;},$rows);
+        $rows = $this->tenant()->query('EmsPaymentSubmissions')->where($conditions)->orderByDesc('created')->all()->toList();
+        if ($rows === []) {
+            return [];
+        }
+
+        $ids = array_map(static fn($r) => (string)$r->id, $rows);
+        $decisions = [];
+        $financeDecisions = $this->tenant()->query('EmsFinanceDecisions')
+            ->where(['request_type' => 'payment_submission', 'request_id IN' => $ids])
+            ->all();
+        foreach ($financeDecisions as $d) {
+            $decisions[(string)$d->request_id] = $d;
+        }
+
+        return array_map(
+            static function ($r) use ($decisions) {
+                $d = $decisions[(string)$r->id] ?? null;
+                $out = [
+                    'id' => (string)$r->id,
+                    'invoiceId' => (string)$r->invoice_id,
+                    'studentId' => (string)$r->student_id,
+                    'amount' => (int)$r->amount,
+                    'method' => (string)$r->method,
+                    'payerName' => (string)$r->payer_name,
+                    'payerRelationship' => (string)$r->payer_relationship,
+                    'receivedOn' => (string)$r->received_on,
+                    'recordedBy' => (string)$r->recorded_by_name,
+                    'status' => $d ? (string)$d->decision : 'pending',
+                ];
+                if ($r->normalized_reference) {
+                    $out['reference'] = (string)$r->normalized_reference;
+                }
+                if ($r->cash_acknowledgement) {
+                    $out['cashAcknowledgement'] = (string)$r->cash_acknowledgement;
+                }
+
+                return $out;
+            },
+            $rows,
+        );
     }
 
     /** Provider + office payments by state, for the bursar's reconciliation. */
@@ -428,17 +523,17 @@ class Fees
             ];
         };
 
-        $completed = array_filter($payments, static fn ($p) => (string)$p->state === 'completed');
-        $pending = array_filter($payments, static fn ($p) => (string)$p->state === 'pending');
-        $failed = array_filter($payments, static fn ($p) => (string)$p->state === 'failed');
+        $completed = array_filter($payments, static fn($p) => (string)$p->state === 'completed');
+        $pending = array_filter($payments, static fn($p) => (string)$p->state === 'pending');
+        $failed = array_filter($payments, static fn($p) => (string)$p->state === 'failed');
 
         $pendingRows = array_map($enrichRow, array_values($pending));
-        usort($pendingRows, static fn ($a, $b) => strcmp((string)$b['paidOn'], (string)$a['paidOn']));
+        usort($pendingRows, static fn($a, $b) => strcmp((string)$b['paidOn'], (string)$a['paidOn']));
         $failedRows = array_map($enrichRow, array_values($failed));
-        usort($failedRows, static fn ($a, $b) => strcmp((string)($b['failedOn'] ?? ''), (string)($a['failedOn'] ?? '')));
+        usort($failedRows, static fn($a, $b) => strcmp((string)($b['failedOn'] ?? ''), (string)($a['failedOn'] ?? '')));
 
         $refunds = $this->tenant()->query('EmsRefunds')->all()->toList();
-        $processed = array_filter($refunds, static fn ($r) => (string)$r->status === 'processed');
+        $processed = array_filter($refunds, static fn($r) => (string)$r->status === 'processed');
         $refundContext = function (EntityInterface $r) use ($invoiceById, $paymentById): array {
             $inv = $invoiceById[(string)$r->invoice_id] ?? null;
             $pay = $paymentById[(string)$r->payment_id] ?? null;
@@ -452,9 +547,9 @@ class Fees
         };
         $refundsPending = array_map($refundContext, array_values(array_filter(
             $refunds,
-            static fn ($r) => (string)$r->status === 'pending'
+            static fn($r) => (string)$r->status === 'pending',
         )));
-        usort($refundsPending, static fn ($a, $b) => strcmp((string)$b['requestedOn'], (string)$a['requestedOn']));
+        usort($refundsPending, static fn($a, $b) => strcmp((string)$b['requestedOn'], (string)$a['requestedOn']));
 
         $sum = static function (array $rows): int {
             $t = 0;
@@ -471,7 +566,7 @@ class Fees
             'completedCount' => count($completed),
             'completedAmount' => $sum($completed),
             'pendingAmount' => $sum($pending),
-            'reversedCount' => count(array_filter($payments, static fn ($p) => (string)$p->state === 'reversed')),
+            'reversedCount' => count(array_filter($payments, static fn($p) => (string)$p->state === 'reversed')),
             'refundsPending' => $refundsPending,
             'refundedAmount' => $sum($processed),
             'refundedCount' => count($processed),
@@ -526,14 +621,13 @@ class Fees
                 'collectionRate' => $g['invoiced'] === 0 ? 0 : $g['collected'] / $g['invoiced'],
             ];
         }
-        usort($byClass, static fn ($a, $b) =>
-            ($b['outstanding'] <=> $a['outstanding']) ?: strcmp((string)$a['label'], (string)$b['label']));
+        usort($byClass, static fn($a, $b) => $b['outstanding'] <=> $a['outstanding'] ?: strcmp((string)$a['label'], (string)$b['label']));
 
         $recent = $this->tenant()->query('EmsPayments')
             ->where(['state' => 'completed'])
             ->all()
             ->toList();
-        usort($recent, static fn ($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
+        usort($recent, static fn($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
         $recent = array_slice($recent, 0, 8);
 
         return [

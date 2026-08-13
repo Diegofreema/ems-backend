@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -27,7 +26,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\ProgrammesTable&\Cake\ORM\Association\BelongsToMany $Programmes
  * @property \App\Model\Table\SemestersTable&\Cake\ORM\Association\BelongsToMany $Semesters
  * @property \App\Model\Table\SubjectsTable&\Cake\ORM\Association\BelongsToMany $Subjects
- *
  * @method \App\Model\Entity\Department newEmptyEntity()
  * @method \App\Model\Entity\Department newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Department[] newEntities(array $data, array $options = [])
@@ -173,10 +171,11 @@ class DepartmentsTable extends Table
                 return true; // Skip validation for null/0 faculty_id
             }
             $faculty = $this->Faculties->find()->where(['id' => $entity->faculty_id])->first();
+
             return !empty($faculty);
         }, 'validFaculty', [
             'errorField' => 'faculty_id',
-            'message' => 'Faculty does not exist'
+            'message' => 'Faculty does not exist',
         ]);
 
         return $rules;

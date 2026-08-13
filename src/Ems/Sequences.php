@@ -19,8 +19,10 @@ use Cake\Utility\Text;
  */
 class Sequences
 {
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
     public function __construct(LocatorInterface $locator)
     {
@@ -39,14 +41,14 @@ class Sequences
         $conn->execute(
             'INSERT IGNORE INTO ems_sequences (id, school_id, name, value, created, modified) '
             . 'VALUES (?, ?, ?, ?, NOW(), NOW())',
-            [Text::uuid(), $schoolId, $name, $floor]
+            [Text::uuid(), $schoolId, $name, $floor],
         );
         // Atomic increment: LAST_INSERT_ID(expr) stashes the new value on this
         // connection, so the follow-up SELECT cannot race another writer.
         $conn->execute(
             'UPDATE ems_sequences SET value = LAST_INSERT_ID(value + 1), modified = NOW() '
             . 'WHERE school_id = ? AND name = ?',
-            [$schoolId, $name]
+            [$schoolId, $name],
         );
         $row = $conn->execute('SELECT LAST_INSERT_ID() AS v')->fetch('assoc');
 

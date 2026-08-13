@@ -14,14 +14,16 @@ final class FinanceDatabaseIntegrityTest extends EmsDbTestCase
             $this->assertStringContainsString("SIGNAL SQLSTATE '45000'", $row['ACTION_STATEMENT']);
             $guarded[$row['EVENT_OBJECT_TABLE']][$row['EVENT_MANIPULATION']] = true;
         }
-        foreach ([
+        foreach (
+            [
             'ems_payments', 'ems_receipts', 'ems_finance_ledger_events',
             'ems_finance_evidence', 'ems_finance_decisions', 'ems_audit_events',
             'ems_payment_submissions', 'ems_finance_adjustment_requests',
             'ems_finance_adjustment_payouts', 'ems_bank_statement_batches',
             'ems_bank_statement_rows', 'ems_fee_plan_versions',
             'ems_invoice_change_requests', 'ems_invoice_events', 'ems_cash_batches',
-        ] as $table) {
+            ] as $table
+        ) {
             $this->assertTrue($guarded[$table]['UPDATE'] ?? false, $table . ' update guard');
             $this->assertTrue($guarded[$table]['DELETE'] ?? false, $table . ' delete guard');
         }
@@ -36,8 +38,8 @@ final class FinanceDatabaseIntegrityTest extends EmsDbTestCase
     public function testCashAcknowledgementsAreUniqueWithinACollectionBatch(): void
     {
         $row = $this->db->execute(
-            "SELECT NON_UNIQUE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() "
-            . "AND TABLE_NAME='ems_payment_submissions' AND INDEX_NAME='uq_submission_cash_acknowledgement' LIMIT 1"
+            'SELECT NON_UNIQUE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() '
+            . "AND TABLE_NAME='ems_payment_submissions' AND INDEX_NAME='uq_submission_cash_acknowledgement' LIMIT 1",
         )->fetch('assoc');
 
         $this->assertSame('0', (string)($row['NON_UNIQUE'] ?? ''));

@@ -13,7 +13,6 @@ use Cake\Validation\Validator;
  *
  * @property \App\Model\Table\UsersTable&\Cake\ORM\Association\BelongsTo $Users
  * @property \App\Model\Table\StudentsTable&\Cake\ORM\Association\BelongsToMany $Students
- *
  * @method \App\Model\Entity\Sparent newEmptyEntity()
  * @method \App\Model\Entity\Sparent newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Sparent[] newEntities(array $data, array $options = [])
@@ -65,13 +64,13 @@ class SparentsTable extends Table
 
         $this->belongsTo('Users', [
             'foreignKey' => 'user_id',
-            'joinType' => 'INNER'
+            'joinType' => 'INNER',
         ]);
         $this->hasMany('Parentsmessages', [
-            'foreignKey' => 'sparent_id'
+            'foreignKey' => 'sparent_id',
         ]);
         $this->hasMany('Students', [
-            'foreignKey' => 'sparent_id'
+            'foreignKey' => 'sparent_id',
         ]);
     }
 
@@ -148,7 +147,7 @@ class SparentsTable extends Table
      * @param array $options The options for the finder
      * @return \Cake\ORM\Query
      */
-    public function findWithFullNames(\Cake\ORM\Query $query, array $options)
+    public function findWithFullNames(Query $query, array $options): Query
     {
         return $query->select(['id', 'fathersname', 'mothersname']);
     }

@@ -3,12 +3,15 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
+use App\Ems\Comms;
 use App\Ems\Messages;
 use App\Ems\Serializer\CommsSerializer;
+use App\Ems\Serializer\Wire;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
 use Cake\Utility\Text;
+use Throwable;
 
 /**
  * Communication (document.md §3.20): the notice board, the portal feed, the
@@ -58,7 +61,7 @@ class CommunicationController extends AppController
             array_map([CommsSerializer::class, 'announcement'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -96,7 +99,7 @@ class CommunicationController extends AppController
             array_map([CommsSerializer::class, 'announcement'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -145,6 +148,7 @@ class CommunicationController extends AppController
     }
 
     /** POST /announcements/{id}/publish */
+
     /** PUT /announcements/{id} — a DRAFT can be corrected; sent mail cannot. */
     public function edit(string $id): Response
     {
@@ -213,8 +217,10 @@ class CommunicationController extends AppController
             ->orderByDesc('sent_on')->orderByDesc('created')->all()->toList();
         $filtered = [];
         foreach ($rows as $n) {
-            if (($channel === 'all' || (string)$n->channel === $channel)
-                && ($kind === 'all' || (string)$n->kind === $kind)) {
+            if (
+                ($channel === 'all' || (string)$n->channel === $channel)
+                && ($kind === 'all' || (string)$n->kind === $kind)
+            ) {
                 $filtered[] = $n;
             }
         }
@@ -226,7 +232,7 @@ class CommunicationController extends AppController
             array_map([CommsSerializer::class, 'notification'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -372,9 +378,9 @@ class CommunicationController extends AppController
                     $notifications->saveOrFail($notification);
 
                     return $report;
-                }
+                },
             );
-        } catch (\Throwable $error) {
+        } catch (Throwable $error) {
             // A simultaneous request can only win the unique send marker once.
             if ($this->tenant()->query('EmsNotifications')->where(['announcement_id' => $id])->count() > 0) {
                 $this->fail(409, Messages::DELIVER_ALREADY_SENT);
@@ -402,7 +408,7 @@ class CommunicationController extends AppController
             ->where(['announcement_id' => $id])->all()->toList();
         $retriable = array_values(array_filter(
             $rows,
-            fn ($r) => (string)$r->status === 'failed' && (int)$r->attempts < \App\Ems\Comms::MAX_DELIVERY_ATTEMPTS
+            fn($r) => (string)$r->status === 'failed' && (int)$r->attempts < Comms::MAX_DELIVERY_ATTEMPTS,
         ));
         if ($retriable === []) {
             $this->fail(422, Messages::DELIVER_NOTHING_TO_RETRY);
@@ -512,7 +518,6 @@ class CommunicationController extends AppController
     /** GET /alerts — staff. Derived fresh on every read, never stored. */
     public function alerts(): Response
     {
-
         return $this->json($this->comms()->computeAlerts());
     }
 
@@ -535,7 +540,7 @@ class CommunicationController extends AppController
         if ($alert === null) {
             $this->fail(422, Messages::ALERT_STALE);
         }
-        $message = \App\Ems\Comms::ALERT_MESSAGES[$kind];
+        $message = Comms::ALERT_MESSAGES[$kind];
         $notifications = $this->fetchTable('EmsNotifications');
         $recipients = $this->fetchTable('EmsMessageRecipients');
         $today = FrozenDate::today()->format('Y-m-d');
@@ -599,7 +604,7 @@ class CommunicationController extends AppController
                 $notifications->saveOrFail($notification);
 
                 return $notification;
-            }
+            },
         );
 
         return $this->json(CommsSerializer::notification($notification));
@@ -617,8 +622,8 @@ class CommunicationController extends AppController
     private function publishedKey(EntityInterface $a): string
     {
         return $a->published_on !== null
-            ? (string)\App\Ems\Serializer\Wire::date($a->published_on)
-            : (string)\App\Ems\Serializer\Wire::date($a->created_on);
+            ? (string)Wire::date($a->published_on)
+            : (string)Wire::date($a->created_on);
     }
 
     private function findAnnouncement(string $id): EntityInterface
@@ -650,7 +655,7 @@ class CommunicationController extends AppController
             $this->assertOneOf(
                 (string)($data['category'] ?? ''),
                 self::CATEGORIES,
-                Messages::ANNOUNCEMENT_CATEGORY_INVALID
+                Messages::ANNOUNCEMENT_CATEGORY_INVALID,
             );
         }
     }
@@ -679,15 +684,14 @@ class CommunicationController extends AppController
         $rows = $this->tenant()->query('EmsMessageRecipients')
             ->where(['announcement_id' => $announcementId])
             ->all()->toList();
-        $order = \App\Ems\Comms::STATUS_ORDER;
-        usort($rows, fn ($a, $b) =>
-            (($order[(string)$a->status] ?? 9) <=> ($order[(string)$b->status] ?? 9))
+        $order = Comms::STATUS_ORDER;
+        usort($rows, fn($a, $b) => ($order[(string)$a->status] ?? 9) <=> ($order[(string)$b->status] ?? 9)
             ?: strcmp((string)$a->person_name, (string)$b->person_name));
 
-        $count = fn (string $status) => count(array_filter($rows, fn ($r) => (string)$r->status === $status));
+        $count = fn(string $status) => count(array_filter($rows, fn($r) => (string)$r->status === $status));
         $needsFollowUp = count(array_filter(
             $rows,
-            fn ($r) => (string)$r->status === 'failed' && (int)$r->attempts >= \App\Ems\Comms::MAX_DELIVERY_ATTEMPTS
+            fn($r) => (string)$r->status === 'failed' && (int)$r->attempts >= Comms::MAX_DELIVERY_ATTEMPTS,
         ));
 
         return [

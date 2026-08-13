@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -16,7 +15,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\SessionsTable&\Cake\ORM\Association\BelongsTo $Sessions
  * @property \App\Model\Table\SetassignmentsTable&\Cake\ORM\Association\BelongsTo $Setassignments
  * @property \App\Model\Table\StudentAnswersTable&\Cake\ORM\Association\HasMany $StudentAnswers
- *
  * @method \App\Model\Entity\Assignment newEmptyEntity()
  * @method \App\Model\Entity\Assignment newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Assignment[] newEntities(array $data, array $options = [])
@@ -63,7 +61,7 @@ class AssignmentsTable extends Table
             'foreignKey' => 'setassignment_id',
             'joinType' => 'INNER',
         ]);
-        
+
         $this->hasMany('StudentAnswers', [
             'foreignKey' => 'assignment_id',
             'dependent' => true,

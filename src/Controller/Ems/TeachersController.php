@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
-use App\Ems\SubjectCatalog;
 use App\Ems\Messages;
 use App\Ems\Serializer\ClassSerializer;
 use App\Ems\Serializer\TeacherSerializer;
+use App\Ems\SubjectCatalog;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
@@ -74,7 +74,7 @@ class TeachersController extends AppController
             array_map([TeacherSerializer::class, 'one'], $rows->toList()),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -130,6 +130,7 @@ class TeachersController extends AppController
      * DELETE /teachers/{id} — idempotent; allocations and timetable keep a
      * dangling teacherId which renders as "Unassigned".
      */
+
     /** POST /teachers/{id}/mark-former — archive an employment record. */
     public function markFormer(string $id): Response
     {
@@ -253,7 +254,7 @@ class TeachersController extends AppController
             'gender' => (string)($body['gender'] ?? ''),
             'subjects' => is_array($subjects)
                 ? array_values(array_map(
-                    fn ($name) => SubjectCatalog::requireId($this->viewer->schoolId, (string)$name),
+                    fn($name) => SubjectCatalog::requireId($this->viewer->schoolId, (string)$name),
                     $subjects,
                 ))
                 : [],

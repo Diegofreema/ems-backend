@@ -46,12 +46,12 @@ class QuestionOption extends Entity
      *
      * @return string
      */
-    protected function _getFormattedLabel()
+    protected function _getFormattedLabel(): string
     {
         $letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         $index = $this->order_number - 1;
         $letter = $letters[$index] ?? $this->order_number;
-        
+
         return $letter . '. ' . $this->option_text;
     }
 
@@ -60,11 +60,11 @@ class QuestionOption extends Entity
      *
      * @return string
      */
-    protected function _getOptionLetter()
+    protected function _getOptionLetter(): string
     {
         $letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         $index = $this->order_number - 1;
-        
+
         return $letters[$index] ?? (string)$this->order_number;
     }
 
@@ -73,7 +73,7 @@ class QuestionOption extends Entity
      *
      * @return bool
      */
-    public function isCorrect()
+    public function isCorrect(): bool
     {
         return $this->is_correct === true;
     }
@@ -83,7 +83,7 @@ class QuestionOption extends Entity
      *
      * @return string
      */
-    public function getLabel()
+    public function getLabel(): string
     {
         return $this->option_letter . '. ' . $this->option_text;
     }
@@ -93,7 +93,7 @@ class QuestionOption extends Entity
      *
      * @return string
      */
-    public function getText()
+    public function getText(): string
     {
         return $this->option_text;
     }

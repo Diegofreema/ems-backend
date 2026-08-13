@@ -4,35 +4,47 @@ declare(strict_types=1);
 namespace App\Controller\Ems;
 
 use App\Api\Jwt;
+use App\Ems\Academics;
+use App\Ems\Analytics;
 use App\Ems\Audit;
+use App\Ems\Comms;
+use App\Ems\Dashboard;
+use App\Ems\Fees;
+use App\Ems\FinanceSecurity;
+use App\Ems\Grading;
+use App\Ems\Imports;
 use App\Ems\Policy;
 use App\Ems\RateLimited;
 use App\Ems\RateLimiter;
+use App\Ems\Reports;
 use App\Ems\Scope;
+use App\Ems\Sequences;
+use App\Ems\Storage;
 use App\Ems\SubjectCatalog;
+use App\Ems\Tenant;
 use App\Ems\Viewer;
 use App\Ems\ViewerDenied;
 use App\Ems\ViewerResolver;
 use Cake\Controller\Controller;
 use Cake\Core\Configure;
-use Cake\Datasource\EntityInterface;
 use Cake\Datasource\ConnectionManager;
+use Cake\Datasource\EntityInterface;
+use Cake\Event\EventInterface;
 use Cake\Http\Exception\HttpException;
 use Cake\Http\Response;
+use Cake\I18n\FrozenDate;
 use Closure;
 use Throwable;
 
 /**
  * Base controller for the EMS contract API at /api/ems (document.md).
  *
- * Deliberately extends the framework Controller directly (like Api\AppController)
- * so it inherits no session Auth, FormProtection or Flash. Differences from the
- * legacy /api/v1 surface:
+ * Deliberately extends the framework Controller directly so it inherits no
+ * session Auth, FormProtection or Flash:
  *
- *  - Auth is Bearer-JWT only, requiring claims type === 'ems' (v1 tokens carry
- *    type 'access', so the two surfaces reject each other's tokens).
- *  - Responses are RAW contract payloads — lists as {items,total,page,pageSize},
- *    errors as {message} — never the v1 {success,data,meta} envelope.
+ *  - Auth is Bearer-JWT only, requiring claims type === 'ems'.
+ *  - Responses are raw contract payloads — lists as {items,total,page,pageSize}
+ *    and errors as {message}.
  *  - Every request under /schools/{schoolId} asserts the token holds a
  *    membership in that school before the action runs (tenancy, §1.1/§1.4).
  *  - Every response carries Cache-Control: private, no-store (§3.18).
@@ -59,7 +71,7 @@ class AppController extends Controller
     /**
      * @var \App\Ems\Tenant|null
      */
-    private ?\App\Ems\Tenant $tenantInstance = null;
+    private ?Tenant $tenantInstance = null;
 
     /**
      * @var \App\Ems\Audit|null
@@ -69,57 +81,57 @@ class AppController extends Controller
     /**
      * @var \App\Ems\Storage|null
      */
-    private ?\App\Ems\Storage $storageInstance = null;
+    private ?Storage $storageInstance = null;
 
     /**
      * @var \App\Ems\Sequences|null
      */
-    private ?\App\Ems\Sequences $sequencesInstance = null;
+    private ?Sequences $sequencesInstance = null;
 
     /**
      * @var \App\Ems\Grading|null
      */
-    private ?\App\Ems\Grading $gradingInstance = null;
+    private ?Grading $gradingInstance = null;
 
     /**
      * @var \App\Ems\Academics|null
      */
-    private ?\App\Ems\Academics $academicsInstance = null;
+    private ?Academics $academicsInstance = null;
 
     /**
      * @var \App\Ems\Fees|null
      */
-    private ?\App\Ems\Fees $feesInstance = null;
+    private ?Fees $feesInstance = null;
 
     /**
      * @var \App\Ems\Analytics|null
      */
-    private ?\App\Ems\Analytics $analyticsInstance = null;
+    private ?Analytics $analyticsInstance = null;
 
     /**
      * @var \App\Ems\Dashboard|null
      */
-    private ?\App\Ems\Dashboard $dashboardInstance = null;
+    private ?Dashboard $dashboardInstance = null;
 
     /**
      * @var \App\Ems\Comms|null
      */
-    private ?\App\Ems\Comms $commsInstance = null;
+    private ?Comms $commsInstance = null;
 
     /**
      * @var \App\Ems\Reports|null
      */
-    private ?\App\Ems\Reports $reportsInstance = null;
+    private ?Reports $reportsInstance = null;
 
     /**
      * @var \App\Ems\FinanceSecurity|null
      */
-    private ?\App\Ems\FinanceSecurity $financeSecurityInstance = null;
+    private ?FinanceSecurity $financeSecurityInstance = null;
 
     /**
      * @var \App\Ems\Imports|null
      */
-    private ?\App\Ems\Imports $importsInstance = null;
+    private ?Imports $importsInstance = null;
 
     public function initialize(): void
     {
@@ -133,7 +145,7 @@ class AppController extends Controller
      * @param \Cake\Event\EventInterface $event Controller event.
      * @return void
      */
-    public function beforeFilter(\Cake\Event\EventInterface $event): void
+    public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
 
@@ -187,7 +199,7 @@ class AppController extends Controller
             $this->viewer = ViewerResolver::resolve(
                 $this->getTableLocator()->get('EmsUsers'),
                 $claims,
-                $pathSchoolId
+                $pathSchoolId,
             );
         } catch (ViewerDenied $e) {
             $event->setResult($this->errorResponse($e->statusCode, $e->getMessage()));
@@ -209,7 +221,6 @@ class AppController extends Controller
         if ($this->tenant()->query('EmsFinanceIntegrityLocks')->where(['cleared_at IS' => null])->count() > 0) {
             $this->response = $this->response->withHeader('X-Finance-Integrity-Warning', 'writes-locked');
         }
-
     }
 
     /**
@@ -244,7 +255,7 @@ class AppController extends Controller
                 $this->request->getMethod(),
                 $this->request->getRequestTarget(),
                 get_class($e),
-                $e->getMessage()
+                $e->getMessage(),
             ));
             $databaseConfig = ConnectionManager::getConfig('default');
             $databaseUrl = (string)getenv('DATABASE_URL');
@@ -261,14 +272,14 @@ class AppController extends Controller
                 ($databaseConfig['database'] ?? null) === ltrim((string)($databaseParts['path'] ?? ''), '/') ? 'yes' : 'no',
                 hash_equals(
                     hash('sha256', rawurldecode((string)($databaseParts['user'] ?? ''))),
-                    hash('sha256', (string)($databaseConfig['username'] ?? ''))
+                    hash('sha256', (string)($databaseConfig['username'] ?? '')),
                 ) ? 'yes' : 'no',
                 hash_equals(
                     hash('sha256', rawurldecode((string)($databaseParts['pass'] ?? ''))),
-                    hash('sha256', (string)($databaseConfig['password'] ?? ''))
+                    hash('sha256', (string)($databaseConfig['password'] ?? '')),
                 ) ? 'yes' : 'no',
                 $sslCa !== '' ? $sslCa : 'missing',
-                $sslCa !== '' && is_readable($sslCa) ? 'yes' : 'no'
+                $sslCa !== '' && is_readable($sslCa) ? 'yes' : 'no',
             ));
             $message = Configure::read('debug')
                 ? $e->getMessage()
@@ -284,7 +295,7 @@ class AppController extends Controller
      *
      * @return never
      */
-    protected function fail(int $status, string $message): void
+    protected function fail(int $status, string $message): never
     {
         throw new HttpException($message, $status);
     }
@@ -328,14 +339,14 @@ class AppController extends Controller
      *
      * @param mixed $payload Any JSON-serializable value (array, scalar, null).
      */
-    protected function json($payload, int $status = 200): Response
+    protected function json(mixed $payload, int $status = 200): Response
     {
         return $this->response
             ->withStatus($status)
             ->withType('application/json')
             ->withStringBody((string)json_encode(
                 $payload,
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
             ));
     }
 
@@ -432,12 +443,12 @@ class AppController extends Controller
      * spelling `'school_id' => $this->viewer->schoolId` — the predicate is then
      * impossible to forget. See App\Ems\Tenant.
      */
-    protected function tenant(): \App\Ems\Tenant
+    protected function tenant(): Tenant
     {
         if ($this->tenantInstance === null) {
-            $this->tenantInstance = new \App\Ems\Tenant(
+            $this->tenantInstance = new Tenant(
                 $this->getTableLocator(),
-                $this->viewer->schoolId
+                $this->viewer->schoolId,
             );
         }
 
@@ -473,19 +484,19 @@ class AppController extends Controller
         return $this->auditInstance;
     }
 
-    protected function storage(): \App\Ems\Storage
+    protected function storage(): Storage
     {
         if ($this->storageInstance === null) {
-            $this->storageInstance = new \App\Ems\Storage($this->getTableLocator());
+            $this->storageInstance = new Storage($this->getTableLocator());
         }
 
         return $this->storageInstance;
     }
 
-    protected function sequences(): \App\Ems\Sequences
+    protected function sequences(): Sequences
     {
         if ($this->sequencesInstance === null) {
-            $this->sequencesInstance = new \App\Ems\Sequences($this->getTableLocator());
+            $this->sequencesInstance = new Sequences($this->getTableLocator());
         }
 
         return $this->sequencesInstance;
@@ -494,10 +505,10 @@ class AppController extends Controller
     /**
      * The grading-scheme authority for the current tenant (§3.3).
      */
-    protected function grading(): \App\Ems\Grading
+    protected function grading(): Grading
     {
         if ($this->gradingInstance === null) {
-            $this->gradingInstance = new \App\Ems\Grading($this->getTableLocator(), $this->viewer->schoolId);
+            $this->gradingInstance = new Grading($this->getTableLocator(), $this->viewer->schoolId);
         }
 
         return $this->gradingInstance;
@@ -506,13 +517,13 @@ class AppController extends Controller
     /**
      * The academics computation engine for the current tenant (§3.1/§3.2/§3.5).
      */
-    protected function academicsEngine(): \App\Ems\Academics
+    protected function academicsEngine(): Academics
     {
         if ($this->academicsInstance === null) {
-            $this->academicsInstance = new \App\Ems\Academics(
+            $this->academicsInstance = new Academics(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
-                $this->grading()
+                $this->grading(),
             );
         }
 
@@ -523,27 +534,27 @@ class AppController extends Controller
      * The fees computation engine for the current tenant (§3.7). `today` is the
      * server's real date — the mock's fixed clock becomes new Date() live (§1.5).
      */
-    protected function feesEngine(): \App\Ems\Fees
+    protected function feesEngine(): Fees
     {
         if ($this->feesInstance === null) {
-            $this->feesInstance = new \App\Ems\Fees(
+            $this->feesInstance = new Fees(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
-                \Cake\I18n\FrozenDate::today()->format('Y-m-d')
+                FrozenDate::today()->format('Y-m-d'),
             );
         }
 
         return $this->feesInstance;
     }
 
-    protected function financeSecurity(): \App\Ems\FinanceSecurity
+    protected function financeSecurity(): FinanceSecurity
     {
         if ($this->financeSecurityInstance === null) {
-            $this->financeSecurityInstance = new \App\Ems\FinanceSecurity(
+            $this->financeSecurityInstance = new FinanceSecurity(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
                 $this->feesEngine(),
-                $this->audit()
+                $this->audit(),
             );
         }
 
@@ -554,15 +565,15 @@ class AppController extends Controller
      * The analytics engine for the current tenant (§3.22) — reuses the grading
      * and fees engines so figures share the pinned-scheme and net-paid rules.
      */
-    protected function analyticsEngine(): \App\Ems\Analytics
+    protected function analyticsEngine(): Analytics
     {
         if ($this->analyticsInstance === null) {
-            $this->analyticsInstance = new \App\Ems\Analytics(
+            $this->analyticsInstance = new Analytics(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
                 $this->grading(),
                 $this->feesEngine(),
-                \Cake\I18n\FrozenDate::today()->format('Y-m-d')
+                FrozenDate::today()->format('Y-m-d'),
             );
         }
 
@@ -573,14 +584,14 @@ class AppController extends Controller
      * The staff dashboard engine for the current tenant — reuses the fees
      * engine so money figures share the net-paid rule.
      */
-    protected function dashboardEngine(): \App\Ems\Dashboard
+    protected function dashboardEngine(): Dashboard
     {
         if ($this->dashboardInstance === null) {
-            $this->dashboardInstance = new \App\Ems\Dashboard(
+            $this->dashboardInstance = new Dashboard(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
                 $this->feesEngine(),
-                \Cake\I18n\FrozenDate::today()->format('Y-m-d')
+                FrozenDate::today()->format('Y-m-d'),
             );
         }
 
@@ -592,13 +603,13 @@ class AppController extends Controller
      * consent / provider pipeline shared by preview and send. `today` is the
      * server's real date.
      */
-    protected function comms(): \App\Ems\Comms
+    protected function comms(): Comms
     {
         if ($this->commsInstance === null) {
-            $this->commsInstance = new \App\Ems\Comms(
+            $this->commsInstance = new Comms(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
-                \Cake\I18n\FrozenDate::today()->format('Y-m-d')
+                FrozenDate::today()->format('Y-m-d'),
             );
         }
 
@@ -609,15 +620,15 @@ class AppController extends Controller
      * The reporting engine for the current tenant (§3.21) — reuses grading and
      * fees so grade and money reports share the pinned-scheme / net-paid rules.
      */
-    protected function reportsEngine(): \App\Ems\Reports
+    protected function reportsEngine(): Reports
     {
         if ($this->reportsInstance === null) {
-            $this->reportsInstance = new \App\Ems\Reports(
+            $this->reportsInstance = new Reports(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
                 $this->grading(),
                 $this->feesEngine(),
-                \Cake\I18n\FrozenDate::today()->format('Y-m-d')
+                FrozenDate::today()->format('Y-m-d'),
             );
         }
 
@@ -627,13 +638,13 @@ class AppController extends Controller
     /**
      * The CSV import engine for the current tenant (§3.17).
      */
-    protected function importsEngine(): \App\Ems\Imports
+    protected function importsEngine(): Imports
     {
         if ($this->importsInstance === null) {
-            $this->importsInstance = new \App\Ems\Imports(
+            $this->importsInstance = new Imports(
                 $this->getTableLocator(),
                 $this->viewer->schoolId,
-                \Cake\I18n\FrozenDate::today()->format('Y-m-d')
+                FrozenDate::today()->format('Y-m-d'),
             );
         }
 
@@ -718,7 +729,7 @@ class AppController extends Controller
             static function ($origin): string {
                 return rtrim(trim((string)$origin), '/');
             },
-            (array)Configure::read('Ems.corsOrigins', [])
+            (array)Configure::read('Ems.corsOrigins', []),
         )));
     }
 }

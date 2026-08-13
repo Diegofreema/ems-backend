@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
-use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -19,7 +17,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\TimetablesTable&\Cake\ORM\Association\HasMany $Timetables
  * @property \App\Model\Table\DepartmentsTable&\Cake\ORM\Association\BelongsToMany $Departments
  * @property \App\Model\Table\FeesTable&\Cake\ORM\Association\BelongsToMany $Fees
- *
  * @method \App\Model\Entity\Level newEmptyEntity()
  * @method \App\Model\Entity\Level newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Level[] newEntities(array $data, array $options = [])

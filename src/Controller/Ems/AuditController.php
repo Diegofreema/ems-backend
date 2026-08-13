@@ -55,7 +55,7 @@ class AuditController extends AppController
             array_map([CalendarSerializer::class, 'auditEvent'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 }

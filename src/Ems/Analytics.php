@@ -28,23 +28,35 @@ class Analytics
     private const ABSENCE_THRESHOLD = 3;
     private const CURRENT_TERM = 'Third';
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var \App\Ems\Grading */
-    private $grading;
+    /**
+     * @var \App\Ems\Grading
+     */
+    private Grading $grading;
 
-    /** @var \App\Ems\Fees */
-    private $fees;
+    /**
+     * @var \App\Ems\Fees
+     */
+    private Fees $fees;
 
-    /** @var string Server's real today (YYYY-MM-DD). */
-    private $today;
+    /**
+     * @var string Server's real today (YYYY-MM-DD).
+     */
+    private string $today;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
     public function __construct(LocatorInterface $locator, string $schoolId, Grading $grading, Fees $fees, string $today)
     {
@@ -65,6 +77,7 @@ class Analytics
     }
 
     // --- headline overview ---------------------------------------------------
+
     public function overview(): array
     {
         $students = $this->students();
@@ -88,8 +101,8 @@ class Analytics
         $split = max(0, count($dates) - self::ATTENDANCE_WINDOW);
         $recentDates = array_flip(array_slice($dates, $split));
         $priorDates = array_flip(array_slice($dates, 0, $split));
-        $recentRate = $this->rateOf(array_filter($attendance, fn ($r) => isset($recentDates[Wire::date($r->date)])));
-        $priorRate = $this->rateOf(array_filter($attendance, fn ($r) => isset($priorDates[Wire::date($r->date)])));
+        $recentRate = $this->rateOf(array_filter($attendance, fn($r) => isset($recentDates[Wire::date($r->date)])));
+        $priorRate = $this->rateOf(array_filter($attendance, fn($r) => isset($priorDates[Wire::date($r->date)])));
 
         // Current-term fees, mirroring the Fees module's derived balances.
         $paid = $this->fees->netPaidByInvoice();
@@ -139,6 +152,7 @@ class Analytics
     }
 
     // --- attendance insights -------------------------------------------------
+
     public function attendanceInsights(): array
     {
         $empty = [
@@ -160,11 +174,11 @@ class Analytics
 
         $days = [];
         foreach ($dates as $date) {
-            $marks = array_values(array_filter($records, fn ($r) => Wire::date($r->date) === $date));
+            $marks = array_values(array_filter($records, fn($r) => Wire::date($r->date) === $date));
             $days[] = [
                 'date' => $date,
                 'rate' => Wire::num($this->rateOf($marks)),
-                'present' => count(array_filter($marks, fn ($r) => $this->attended((string)$r->status))),
+                'present' => count(array_filter($marks, fn($r) => $this->attended((string)$r->status))),
                 'total' => count($marks),
             ];
         }
@@ -202,8 +216,7 @@ class Analytics
                 'total' => $g['total'],
             ];
         }
-        usort($byClass, fn ($a, $b) =>
-            ($a['rate'] <=> $b['rate']) ?: strcmp((string)$a['classGroup'], (string)$b['classGroup']));
+        usort($byClass, fn($a, $b) => $a['rate'] <=> $b['rate'] ?: strcmp((string)$a['classGroup'], (string)$b['classGroup']));
 
         $frequentlyAbsent = [];
         foreach ($absences as $studentId => $n) {
@@ -221,8 +234,7 @@ class Analytics
                 'absences' => $n,
             ];
         }
-        usort($frequentlyAbsent, fn ($a, $b) =>
-            ($b['absences'] <=> $a['absences']) ?: strcmp((string)$a['name'], (string)$b['name']));
+        usort($frequentlyAbsent, fn($a, $b) => $b['absences'] <=> $a['absences'] ?: strcmp((string)$a['name'], (string)$b['name']));
 
         return [
             'windowDays' => self::ATTENDANCE_WINDOW,
@@ -234,6 +246,7 @@ class Analytics
     }
 
     // --- academic performance (latest published exam) ------------------------
+
     public function academicPerformance(): array
     {
         $exam = $this->latestPublishedExam();
@@ -292,13 +305,13 @@ class Analytics
         foreach ($subjectMap as $subject => $s) {
             $bySubject[] = ['subject' => (string)$subject, 'average' => Wire::num($s['sum'] / $s['n']), 'entries' => $s['n']];
         }
-        usort($bySubject, fn ($a, $b) => $b['average'] <=> $a['average']);
+        usort($bySubject, fn($a, $b) => $b['average'] <=> $a['average']);
 
         $byClass = [];
         foreach ($classMap as $classGroup => $c) {
             $byClass[] = ['classGroup' => (string)$classGroup, 'average' => Wire::num($c['sum'] / $c['n']), 'students' => count($c['students'])];
         }
-        usort($byClass, fn ($a, $b) => $b['average'] <=> $a['average']);
+        usort($byClass, fn($a, $b) => $b['average'] <=> $a['average']);
 
         $counts = [];
         foreach ($studentMap as $st) {
@@ -326,7 +339,7 @@ class Analytics
                 'average' => Wire::num($st['sum'] / $st['n']),
             ];
         }
-        usort($topStudents, fn ($a, $b) => $b['average'] <=> $a['average']);
+        usort($topStudents, fn($a, $b) => $b['average'] <=> $a['average']);
         $topStudents = array_slice($topStudents, 0, 5);
 
         return [
@@ -347,10 +360,11 @@ class Analytics
     }
 
     // --- enrolment trends ----------------------------------------------------
+
     public function enrolmentTrends(): array
     {
         $students = $this->students();
-        $enrolledStudents = array_values(array_filter($students, fn ($s) => (string)$s->status === 'enrolled'));
+        $enrolledStudents = array_values(array_filter($students, fn($s) => (string)$s->status === 'enrolled'));
 
         $capacityByLevel = [];
         foreach ($this->tenant()->query('EmsClassGroups')->all() as $c) {
@@ -379,7 +393,7 @@ class Analytics
                 'male' => $g['male'],
             ];
         }
-        usort($byLevel, fn ($a, $b) => strcmp((string)$a['level'], (string)$b['level']));
+        usort($byLevel, fn($a, $b) => strcmp((string)$a['level'], (string)$b['level']));
 
         $intake = [];
         foreach ($students as $s) {
@@ -412,9 +426,9 @@ class Analytics
             'genderSplit' => ['female' => $female, 'male' => $male],
             'statuses' => [
                 'enrolled' => count($enrolledStudents),
-                'applicant' => count(array_filter($students, fn ($s) => (string)$s->status === 'applicant')),
-                'graduated' => count(array_filter($students, fn ($s) => (string)$s->status === 'graduated')),
-                'withdrawn' => count(array_filter($students, fn ($s) => (string)$s->status === 'withdrawn')),
+                'applicant' => count(array_filter($students, fn($s) => (string)$s->status === 'applicant')),
+                'graduated' => count(array_filter($students, fn($s) => (string)$s->status === 'graduated')),
+                'withdrawn' => count(array_filter($students, fn($s) => (string)$s->status === 'withdrawn')),
             ],
         ];
     }
@@ -532,7 +546,7 @@ class Analytics
         $exams = $this->tenant()->query('EmsExams')
             ->where(['status' => 'published'])
             ->all()->toList();
-        usort($exams, fn ($a, $b) => strcmp((string)$b->end_date, (string)$a->end_date));
+        usort($exams, fn($a, $b) => strcmp((string)$b->end_date, (string)$a->end_date));
 
         return $exams[0] ?? null;
     }

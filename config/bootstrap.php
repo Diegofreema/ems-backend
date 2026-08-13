@@ -32,7 +32,7 @@ require __DIR__ . DIRECTORY_SEPARATOR . 'paths.php';
 require CORE_PATH . 'config' . DS . 'bootstrap.php';
 
 /*
- * Compatibility helpers required by the retained /api/v1 API.
+ * Compatibility helpers required by the existing web application.
  */
 require CORE_PATH . 'src' . DS . 'Core' . DS . 'functions_global.php';
 require CORE_PATH . 'src' . DS . 'I18n' . DS . 'functions_global.php';

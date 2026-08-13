@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -12,7 +11,6 @@ use Cake\Validation\Validator;
  * Letters Model
  *
  * @property \App\Model\Table\ModesTable&\Cake\ORM\Association\BelongsTo $Modes
- *
  * @method \App\Model\Entity\Letter newEmptyEntity()
  * @method \App\Model\Entity\Letter newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Letter[] newEntities(array $data, array $options = [])

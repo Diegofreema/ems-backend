@@ -50,15 +50,14 @@ class IncidentsController extends AppController
         $params = $this->pageParams();
         $rows = $this->tenant()->query('EmsIncidents')
             ->all()->toList();
-        usort($rows, fn ($a, $b) =>
-            strcmp((string)$b->recorded_on, (string)$a->recorded_on)
+        usort($rows, fn($a, $b) => strcmp((string)$b->recorded_on, (string)$a->recorded_on)
             ?: strcmp((string)$b->reference, (string)$a->reference));
 
         $total = count($rows);
         $page = array_slice($rows, ($params['page'] - 1) * $params['pageSize'], $params['pageSize']);
         $items = array_map(
-            fn ($i) => GovernanceSerializer::incidentSummary($i, $this->isResponder($i)),
-            $page
+            fn($i) => GovernanceSerializer::incidentSummary($i, $this->isResponder($i)),
+            $page,
         );
 
         return $this->paginated($items, $total, $params['page'], $params['pageSize']);
@@ -142,7 +141,7 @@ class IncidentsController extends AppController
             'incident.recorded',
             'incident',
             (string)$incident->id,
-            sprintf('Recorded %s (%s severity)', $reference, $severityLabel)
+            sprintf('Recorded %s (%s severity)', $reference, $severityLabel),
         );
 
         return $this->json(GovernanceSerializer::incident($incident), 201);
@@ -160,7 +159,7 @@ class IncidentsController extends AppController
             $this->fail(409, sprintf(
                 'A %s incident cannot move to %s.',
                 strtolower(self::STATUS_LABELS[$current] ?? $current),
-                strtolower(self::STATUS_LABELS[$to] ?? $to)
+                strtolower(self::STATUS_LABELS[$to] ?? $to),
             ));
         }
         $note = trim((string)($body['note'] ?? ''));
@@ -185,7 +184,7 @@ class IncidentsController extends AppController
             'incident',
             (string)$incident->id,
             sprintf('Moved %s to %s', (string)$incident->reference, strtolower(self::STATUS_LABELS[$to] ?? $to)),
-            $note
+            $note,
         );
 
         return $this->json(GovernanceSerializer::incident($incident));
@@ -248,7 +247,7 @@ class IncidentsController extends AppController
             'incident.responder_added',
             'incident',
             (string)$incident->id,
-            sprintf('Named %s as a responder on %s', $candidate['name'], (string)$incident->reference)
+            sprintf('Named %s as a responder on %s', $candidate['name'], (string)$incident->reference),
         );
 
         return $this->json(GovernanceSerializer::incident($incident));
@@ -283,9 +282,11 @@ class IncidentsController extends AppController
     private function activeAdmins(): array
     {
         $out = [];
-        foreach ($this->tenant()->query('EmsUsers')
+        foreach (
+            $this->tenant()->query('EmsUsers')
             ->where(['role' => 'administrator', 'status' => 'active'])
-            ->all() as $u) {
+            ->all() as $u
+        ) {
             $out[] = ['userId' => (string)$u->id, 'name' => (string)$u->name];
         }
 
@@ -312,7 +313,7 @@ class IncidentsController extends AppController
             count($entries) + 1,
             FrozenDate::today()->format('Y-m-d'),
             $kind,
-            $note
+            $note,
         );
         $incident->entries = $entries;
     }

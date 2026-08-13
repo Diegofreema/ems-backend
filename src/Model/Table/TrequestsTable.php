@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -17,7 +16,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\StatesTable&\Cake\ORM\Association\BelongsTo $States
  * @property \App\Model\Table\CouriersTable&\Cake\ORM\Association\BelongsTo $Couriers
  * @property \App\Model\Table\FeesTable&\Cake\ORM\Association\BelongsTo $Fees
- *
  * @method \App\Model\Entity\Trequest newEmptyEntity()
  * @method \App\Model\Entity\Trequest newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Trequest[] newEntities(array $data, array $options = [])

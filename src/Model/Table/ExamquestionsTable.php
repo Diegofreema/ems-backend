@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -17,7 +16,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\DepartmentsTable&\Cake\ORM\Association\BelongsTo $Departments
  * @property \App\Model\Table\LevelsTable&\Cake\ORM\Association\BelongsTo $Levels
  * @property \App\Model\Table\AttemptedexamquestionsTable&\Cake\ORM\Association\HasMany $Attemptedexamquestions
- *
  * @method \App\Model\Entity\Examquestion newEmptyEntity()
  * @method \App\Model\Entity\Examquestion newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Examquestion[] newEntities(array $data, array $options = [])

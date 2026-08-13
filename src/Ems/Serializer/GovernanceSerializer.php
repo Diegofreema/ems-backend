@@ -128,7 +128,7 @@ final class GovernanceSerializer
     }
 
     /** @param mixed $value */
-    private static function decode($value): ?array
+    private static function decode(mixed $value): ?array
     {
         if ($value === null) {
             return null;
@@ -143,7 +143,7 @@ final class GovernanceSerializer
     }
 
     /** @param mixed $value */
-    private static function maybe(array &$out, string $key, $value): void
+    private static function maybe(array &$out, string $key, mixed $value): void
     {
         if ($value !== null && (string)$value !== '') {
             $out[$key] = (string)$value;
@@ -151,7 +151,7 @@ final class GovernanceSerializer
     }
 
     /** @param mixed $value */
-    private static function maybeDate(array &$out, string $key, $value): void
+    private static function maybeDate(array &$out, string $key, mixed $value): void
     {
         if ($value !== null) {
             $out[$key] = Wire::date($value);

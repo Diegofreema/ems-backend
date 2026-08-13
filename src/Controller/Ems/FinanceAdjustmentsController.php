@@ -7,16 +7,40 @@ use Cake\Http\Response;
 
 final class FinanceAdjustmentsController extends AppController
 {
+    /**
+     * Lists finance-adjustment requests and their current decision state.
+     */
     public function index(): Response
     {
         $items = [];
         foreach ($this->tenant()->query('EmsFinanceAdjustmentRequests')->orderByDesc('created')->all() as $r) {
-            $d = $this->tenant()->query('EmsFinanceDecisions')->where(['request_type' => 'adjustment','request_id' => (string)$r->id])->first();
-            $items[] = ['id' => (string)$r->id,'paymentId' => (string)$r->payment_id,'invoiceId' => (string)$r->invoice_id,'studentId' => (string)$r->student_id,'kind' => (string)$r->kind,'amount' => (int)$r->amount,'reason' => (string)$r->reason,'requestedBy' => (string)$r->requested_by_name,'status' => $d ? (string)$d->decision : 'pending'];
-        
-}return $this->json(['items' => $items,'total' => count($items),'page' => 1,'pageSize' => count($items)]);
+            $d = $this->tenant()->query('EmsFinanceDecisions')
+                ->where(['request_type' => 'adjustment', 'request_id' => (string)$r->id])
+                ->first();
+            $items[] = [
+                'id' => (string)$r->id,
+                'paymentId' => (string)$r->payment_id,
+                'invoiceId' => (string)$r->invoice_id,
+                'studentId' => (string)$r->student_id,
+                'kind' => (string)$r->kind,
+                'amount' => (int)$r->amount,
+                'reason' => (string)$r->reason,
+                'requestedBy' => (string)$r->requested_by_name,
+                'status' => $d ? (string)$d->decision : 'pending',
+            ];
+        }
+
+        return $this->json([
+            'items' => $items,
+            'total' => count($items),
+            'page' => 1,
+            'pageSize' => count($items),
+        ]);
     }
 
+    /**
+     * Records an independent decision for a finance-adjustment request.
+     */
     public function decide(string $id): Response
     {
         $body = $this->body();
@@ -41,6 +65,9 @@ final class FinanceAdjustmentsController extends AppController
         return $this->json($result);
     }
 
+    /**
+     * Records payout confirmation for an approved refund adjustment.
+     */
     public function confirmPayout(string $id): Response
     {
         $body = $this->body();

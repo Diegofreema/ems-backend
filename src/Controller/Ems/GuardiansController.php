@@ -26,7 +26,7 @@ class GuardiansController extends AppController
         $body = $this->body();
         $isPrimary = (bool)($body['isPrimary'] ?? $guardian->is_primary);
 
-        $guardians->getConnection()->transactional(function () use ($guardians, $guardian, $body, $isPrimary) {
+        $guardians->getConnection()->transactional(function () use ($guardians, $guardian, $body, $isPrimary): void {
             $guardian->first_name = trim((string)($body['firstName'] ?? $guardian->first_name));
             $guardian->last_name = trim((string)($body['lastName'] ?? $guardian->last_name));
             $guardian->relationship = (string)($body['relationship'] ?? $guardian->relationship);
@@ -53,7 +53,7 @@ class GuardiansController extends AppController
         $guardians = $this->fetchTable('EmsGuardians');
         $guardian = $this->findGuardian($id);
 
-        $guardians->getConnection()->transactional(function () use ($guardians, $guardian) {
+        $guardians->getConnection()->transactional(function () use ($guardians, $guardian): void {
             $guardian->is_primary = true;
             $guardians->saveOrFail($guardian);
             $this->demoteOtherPrimaries((string)$guardian->student_id, (string)$guardian->id);
@@ -80,7 +80,7 @@ class GuardiansController extends AppController
             return $this->json(null, 204);
         }
 
-        $guardians->getConnection()->transactional(function () use ($guardians, $guardian) {
+        $guardians->getConnection()->transactional(function () use ($guardians, $guardian): void {
             $studentId = (string)$guardian->student_id;
             $wasPrimary = (bool)$guardian->is_primary;
             $guardian->archived_at = FrozenTime::now();

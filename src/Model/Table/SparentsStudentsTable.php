@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -14,7 +13,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\StudentsTable&\Cake\ORM\Association\BelongsTo $Students
  * @property \App\Model\Table\SparentsStudentsTable&\Cake\ORM\Association\BelongsTo $ParentSparentsStudents
  * @property \App\Model\Table\SparentsStudentsTable&\Cake\ORM\Association\HasMany $ChildSparentsStudents
- *
  * @method \App\Model\Entity\SparentsStudent newEmptyEntity()
  * @method \App\Model\Entity\SparentsStudent newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\SparentsStudent[] newEntities(array $data, array $options = [])
@@ -47,15 +45,15 @@ class SparentsStudentsTable extends Table
 
         $this->belongsTo('Students', [
             'foreignKey' => 'student_id',
-            'joinType' => 'INNER'
+            'joinType' => 'INNER',
         ]);
         $this->belongsTo('ParentSparentsStudents', [
             'className' => 'SparentsStudents',
-            'foreignKey' => 'parent_id'
+            'foreignKey' => 'parent_id',
         ]);
         $this->hasMany('ChildSparentsStudents', [
             'className' => 'SparentsStudents',
-            'foreignKey' => 'parent_id'
+            'foreignKey' => 'parent_id',
         ]);
     }
 

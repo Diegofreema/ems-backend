@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Ems;
 
+use App\Model\Entity\EmsUser;
 use Cake\Http\Exception\ForbiddenException;
 use Cake\ORM\Locator\LocatorInterface;
 use Cake\ORM\Query;
@@ -24,23 +25,35 @@ use Cake\ORM\Query;
  */
 class Scope
 {
-    /** @var \App\Ems\Viewer */
-    private $viewer;
+    /**
+     * @var \App\Ems\Viewer
+     */
+    private Viewer $viewer;
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var array|null|false false = not resolved yet */
-    private $classGroupIds = false;
+    /**
+     * @var array|false|null  false = not resolved yet
+     */
+    private array|false|null $classGroupIds = false;
 
-    /** @var array|null|false false = not resolved yet */
-    private $studentIds = false;
+    /**
+     * @var array|false|null  false = not resolved yet
+     */
+    private array|false|null $studentIds = false;
 
-    /** @var \App\Model\Entity\EmsUser|null|false false = not loaded yet */
-    private $userRow = false;
+    /**
+     * @var \App\Model\Entity\EmsUser|false|null  false = not loaded yet
+     */
+    private EmsUser|false|null $userRow = false;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
     public function __construct(Viewer $viewer, LocatorInterface $locator)
     {
@@ -254,7 +267,7 @@ class Scope
      *
      * @return mixed
      */
-    private function linkField(string $field)
+    private function linkField(string $field): mixed
     {
         if ($this->userRow === false) {
             $this->userRow = $this->tenant()->query('EmsUsers')

@@ -86,7 +86,7 @@ class PublicController extends AppController
         foreach ($uploads as $upload) {
             $this->storage()->assertAcceptable(
                 (string)($upload['contentType'] ?? ''),
-                (int)($upload['sizeBytes'] ?? 0)
+                (int)($upload['sizeBytes'] ?? 0),
             );
             if (trim((string)($upload['name'] ?? '')) === '') {
                 $this->fail(422, Messages::DOCUMENT_NAME_REQUIRED);
@@ -128,7 +128,7 @@ class PublicController extends AppController
                 }
 
                 return $application;
-            }
+            },
         );
 
         return $this->json(AdmissionSerializer::application($application), 201);

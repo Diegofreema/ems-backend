@@ -102,7 +102,7 @@ final class Dedup
                 'dateOfBirth' => $b['dateOfBirth'],
                 'phone' => $b['guardianPhone'],
                 'admissionNumber' => $b['admissionNumber'],
-            ]
+            ],
         );
     }
 

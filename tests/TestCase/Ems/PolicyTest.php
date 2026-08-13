@@ -58,6 +58,7 @@ class PolicyTest extends TestCase
     private function routedActions(): array
     {
         $collection = new RouteCollection();
+        // phpcs:ignore SlevomatCodingStandard.Variables.UnusedVariable.UnusedVariable -- routes.php consumes this named local variable.
         $routes = new RouteBuilder($collection, '/');
         require CONFIG . 'routes.php';
 

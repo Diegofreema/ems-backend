@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -12,7 +11,6 @@ use Cake\Validation\Validator;
  * Subcategory Model
  *
  * @property \App\Model\Table\CategoriesTable&\Cake\ORM\Association\BelongsTo $Categories
- *
  * @method \App\Model\Entity\Subcategory newEmptyEntity()
  * @method \App\Model\Entity\Subcategory newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Subcategory[] newEntities(array $data, array $options = [])

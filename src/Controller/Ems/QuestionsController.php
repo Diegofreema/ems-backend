@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
-use App\Ems\SubjectCatalog;
 use App\Ems\Messages;
 use App\Ems\Serializer\ExamSerializer;
+use App\Ems\SubjectCatalog;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 
@@ -70,7 +70,7 @@ class QuestionsController extends AppController
             array_map([ExamSerializer::class, 'question'], $rows->toList()),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 

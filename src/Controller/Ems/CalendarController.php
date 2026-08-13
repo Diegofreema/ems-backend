@@ -5,6 +5,7 @@ namespace App\Controller\Ems;
 
 use App\Ems\Messages;
 use App\Ems\Serializer\CalendarSerializer;
+use Cake\Chronos\ChronosInterface;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
@@ -96,6 +97,7 @@ class CalendarController extends AppController
     /**
      * POST /calendar/sessions/{id}/terms { name, startsOn, endsOn }
      */
+
     /** PUT /calendar/sessions/{id} — correct an open session's name/dates. */
     public function updateSession(string $id): Response
     {
@@ -220,7 +222,7 @@ class CalendarController extends AppController
             'term.closed',
             'term',
             (string)$term->id,
-            sprintf('Closed the %s term of %s', (string)$term->name, (string)$session->name)
+            sprintf('Closed the %s term of %s', (string)$term->name, (string)$session->name),
         );
 
         return $this->json(CalendarSerializer::term($term));
@@ -257,7 +259,7 @@ class CalendarController extends AppController
             'term',
             (string)$term->id,
             sprintf('Reopened the %s term of %s', (string)$term->name, (string)$session->name),
-            $reason
+            $reason,
         );
 
         return $this->json(CalendarSerializer::term($term));
@@ -289,7 +291,7 @@ class CalendarController extends AppController
             $this->fail(422, sprintf(
                 Messages::SESSION_CLOSE_TERMS_FIRST,
                 implode(' and ', $names),
-                count($names) > 1 ? 's' : ''
+                count($names) > 1 ? 's' : '',
             ));
         }
 
@@ -303,7 +305,7 @@ class CalendarController extends AppController
             'session.closed',
             'session',
             (string)$session->id,
-            sprintf('Closed the %s session', (string)$session->name)
+            sprintf('Closed the %s session', (string)$session->name),
         );
 
         return $this->json(CalendarSerializer::session($session));
@@ -336,7 +338,7 @@ class CalendarController extends AppController
             'session',
             (string)$session->id,
             sprintf('Reopened the %s session', (string)$session->name),
-            $reason
+            $reason,
         );
 
         return $this->json(CalendarSerializer::session($session));
@@ -366,7 +368,7 @@ class CalendarController extends AppController
             array_map([CalendarSerializer::class, 'auditEvent'], $rows->toList()),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -382,10 +384,10 @@ class CalendarController extends AppController
 
     private function assertInsideSession(EntityInterface $session, string $startsOn, string $endsOn): void
     {
-        $sessionStart = $session->starts_on instanceof \Cake\Chronos\ChronosInterface
+        $sessionStart = $session->starts_on instanceof ChronosInterface
             ? $session->starts_on->format('Y-m-d')
             : (string)$session->starts_on;
-        $sessionEnd = $session->ends_on instanceof \Cake\Chronos\ChronosInterface
+        $sessionEnd = $session->ends_on instanceof ChronosInterface
             ? $session->ends_on->format('Y-m-d')
             : (string)$session->ends_on;
 

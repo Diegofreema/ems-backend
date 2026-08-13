@@ -63,7 +63,7 @@ final class CashBatchesController extends AppController
                 $this->fail(409, 'This cash batch is already closed.');
             }
             $subs = $this->tenant()->query('EmsPaymentSubmissions')->where(['cash_batch_id' => $id,'method' => 'cash'])->all()->toList();
-            $expected = array_sum(array_map(static fn($s)=>(int)$s->amount, $subs));
+            $expected = array_sum(array_map(static fn($s) => (int)$s->amount, $subs));
             $counted = (int)($body['countedAmount'] ?? -1);
             if ($counted !== $expected) {
                 $this->fail(422, 'The counted cash must equal the individual acknowledgements in this batch.');

@@ -5,6 +5,7 @@ namespace App\Controller\Ems;
 
 use App\Ems\Dedup;
 use App\Ems\Messages;
+use App\Ems\Serializer\Wire;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 
@@ -19,7 +20,9 @@ use Cake\Http\Response;
  */
 class MergeController extends AppController
 {
-    /** studentId → its category counts, memoized within one request. */
+    /**
+     * studentId → its category counts, memoized within one request.
+     */
     private array $countsCache = [];
 
     /** GET /merge/candidates — all-pairs scoring, score ≥ 0.6, strongest first. */
@@ -46,7 +49,7 @@ class MergeController extends AppController
                 ];
             }
         }
-        usort($pairs, fn ($x, $y) => $y['score'] <=> $x['score']);
+        usort($pairs, fn($x, $y) => $y['score'] <=> $x['score']);
 
         $total = count($pairs);
         $page = array_slice($pairs, ($params['page'] - 1) * $params['pageSize'], $params['pageSize']);
@@ -94,28 +97,30 @@ class MergeController extends AppController
         $movingTotal = $this->totalOf($moving);
 
         $students = $this->fetchTable('EmsStudents');
-        $students->getConnection()->transactional(function () use ($survivorId, $retiredId, $students) {
+        $students->getConnection()->transactional(function () use ($survivorId, $retiredId, $students): void {
             $sid = $this->viewer->schoolId;
             // Reattach every studentId-keyed record to the survivor.
             $this->fetchTable('EmsGuardians')->updateAll(
                 ['student_id' => $survivorId, 'is_primary' => false],
-                ['school_id' => $sid, 'student_id' => $retiredId]
+                ['school_id' => $sid, 'student_id' => $retiredId],
             );
-            foreach (['EmsAttendanceRecords', 'EmsAcademicTermRecords', 'EmsEnrolments',
+            foreach (
+                ['EmsAttendanceRecords', 'EmsAcademicTermRecords', 'EmsEnrolments',
                 'EmsExamGrades', 'EmsAssessmentScores', 'EmsInvoices', 'EmsPayments',
-                'EmsRefunds', 'EmsFeeAwards'] as $table) {
+                'EmsRefunds', 'EmsFeeAwards'] as $table
+            ) {
                 $this->fetchTable($table)->updateAll(
                     ['student_id' => $survivorId],
-                    ['school_id' => $sid, 'student_id' => $retiredId]
+                    ['school_id' => $sid, 'student_id' => $retiredId],
                 );
             }
             $this->fetchTable('EmsDocuments')->updateAll(
                 ['owner_id' => $survivorId],
-                ['school_id' => $sid, 'owner' => 'student', 'owner_id' => $retiredId]
+                ['school_id' => $sid, 'owner' => 'student', 'owner_id' => $retiredId],
             );
             $this->fetchTable('EmsAdmissionApplications')->updateAll(
                 ['student_id' => $survivorId],
-                ['school_id' => $sid, 'student_id' => $retiredId]
+                ['school_id' => $sid, 'student_id' => $retiredId],
             );
             $this->repointUsers($survivorId, $retiredId);
             $this->syncPrimaryContact($survivorId);
@@ -141,15 +146,15 @@ class MergeController extends AppController
                 $movingTotal,
                 (string)$retired->first_name,
                 (string)$retired->last_name,
-                \App\Ems\Serializer\Wire::date($retired->date_of_birth),
+                Wire::date($retired->date_of_birth),
                 (string)$retired->gender,
                 (string)$retired->class_group,
                 (string)$retired->status,
                 (string)$retired->guardian_name,
                 (string)$retired->guardian_phone,
-                \App\Ems\Serializer\Wire::date($retired->enrolled_on)
+                Wire::date($retired->enrolled_on),
             ),
-            $reason
+            $reason,
         );
 
         return $this->json([
@@ -182,10 +187,10 @@ class MergeController extends AppController
             'name' => trim((string)$s->first_name . ' ' . (string)$s->last_name),
             'classGroup' => (string)$s->class_group,
             'status' => (string)$s->status,
-            'dateOfBirth' => \App\Ems\Serializer\Wire::date($s->date_of_birth),
+            'dateOfBirth' => Wire::date($s->date_of_birth),
             'guardianName' => (string)$s->guardian_name,
             'guardianPhone' => (string)$s->guardian_phone,
-            'enrolledOn' => \App\Ems\Serializer\Wire::date($s->enrolled_on),
+            'enrolledOn' => Wire::date($s->enrolled_on),
         ];
     }
 
@@ -195,7 +200,7 @@ class MergeController extends AppController
         return [
             'firstName' => (string)$s->first_name,
             'lastName' => (string)$s->last_name,
-            'dateOfBirth' => \App\Ems\Serializer\Wire::date($s->date_of_birth),
+            'dateOfBirth' => Wire::date($s->date_of_birth),
             'guardianPhone' => (string)$s->guardian_phone,
         ];
     }
@@ -212,7 +217,7 @@ class MergeController extends AppController
         if (isset($this->countsCache[$studentId])) {
             return $this->countsCache[$studentId];
         }
-        $count = fn (string $table, array $extra = []) => $this->tenant()->query($table)
+        $count = fn(string $table, array $extra = []) => $this->tenant()->query($table)
             ->where(['student_id' => $studentId] + $extra)->count();
 
         return $this->countsCache[$studentId] = [
@@ -253,7 +258,7 @@ class MergeController extends AppController
                 }
                 $ids = is_array($ids) ? array_map('strval', $ids) : [];
                 if (in_array($retiredId, $ids, true)) {
-                    $mapped = array_map(fn ($id) => $id === $retiredId ? $survivorId : $id, $ids);
+                    $mapped = array_map(fn($id) => $id === $retiredId ? $survivorId : $id, $ids);
                     $user->link_student_ids = array_values(array_unique($mapped));
                     $users->saveOrFail($user);
                 }

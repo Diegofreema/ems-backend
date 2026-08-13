@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Model\Entity\StudentAnswer;
 use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
@@ -14,7 +15,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\AssignmentsTable&\Cake\ORM\Association\BelongsTo $Assignments
  * @property \App\Model\Table\QuestionsTable&\Cake\ORM\Association\BelongsTo $Questions
  * @property \App\Model\Table\QuestionOptionsTable&\Cake\ORM\Association\BelongsTo $QuestionOptions
- *
  * @method \App\Model\Entity\StudentAnswer newEmptyEntity()
  * @method \App\Model\Entity\StudentAnswer newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\StudentAnswer[] newEntities(array $data, array $options = [])
@@ -118,7 +118,7 @@ class StudentAnswersTable extends Table
      * @param array $options The options containing assignment_id
      * @return \Cake\ORM\Query
      */
-    public function findByAssignmentId(Query $query, array $options)
+    public function findByAssignmentId(Query $query, array $options): Query
     {
         return $query->where(['StudentAnswers.assignment_id' => $options['assignment_id']]);
     }
@@ -130,7 +130,7 @@ class StudentAnswersTable extends Table
      * @param array $options The options containing question_id
      * @return \Cake\ORM\Query
      */
-    public function findByQuestionId(Query $query, array $options)
+    public function findByQuestionId(Query $query, array $options): Query
     {
         return $query->where(['StudentAnswers.question_id' => $options['question_id']]);
     }
@@ -142,7 +142,7 @@ class StudentAnswersTable extends Table
      * @param array $options The options containing selected_option_id
      * @return \Cake\ORM\Query
      */
-    public function findBySelectedOption(Query $query, array $options)
+    public function findBySelectedOption(Query $query, array $options): Query
     {
         return $query->where(['StudentAnswers.selected_option_id' => $options['selected_option_id']]);
     }
@@ -153,7 +153,7 @@ class StudentAnswersTable extends Table
      * @param int $assignmentId The assignment ID
      * @return \Cake\ORM\Query
      */
-    public function getAnswersForAssignment($assignmentId)
+    public function getAnswersForAssignment(int $assignmentId): Query
     {
         return $this->find()
             ->where(['assignment_id' => $assignmentId])
@@ -168,7 +168,7 @@ class StudentAnswersTable extends Table
      * @param int $questionId The question ID
      * @return \App\Model\Entity\StudentAnswer|null
      */
-    public function getAnswerForQuestion($assignmentId, $questionId)
+    public function getAnswerForQuestion(int $assignmentId, int $questionId): ?StudentAnswer
     {
         return $this->find()
             ->where(['assignment_id' => $assignmentId, 'question_id' => $questionId])
@@ -183,7 +183,7 @@ class StudentAnswersTable extends Table
      * @param int $questionId The question ID
      * @return bool
      */
-    public function hasAnswered($assignmentId, $questionId)
+    public function hasAnswered(int $assignmentId, int $questionId): bool
     {
         return $this->exists(['assignment_id' => $assignmentId, 'question_id' => $questionId]);
     }

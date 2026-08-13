@@ -82,7 +82,7 @@ class GradingController extends AppController
             'note' => $note !== '' ? $note : null,
         ], ['validate' => false]);
 
-        $schemes->getConnection()->transactional(function () use ($schemes, $active, $scheme) {
+        $schemes->getConnection()->transactional(function () use ($schemes, $active, $scheme): void {
             if ($active !== null) {
                 $active->status = 'retired';
                 $schemes->saveOrFail($active);
@@ -96,7 +96,7 @@ class GradingController extends AppController
             'grading_scheme',
             (string)$scheme->id,
             sprintf('Updated the grading scale to version %d (%d grades)', $version, count($clean)),
-            $note !== '' ? $note : null
+            $note !== '' ? $note : null,
         );
 
         return $this->json(Grading::schemeWire($scheme));

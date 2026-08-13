@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -17,7 +16,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\ResultsTable&\Cake\ORM\Association\HasMany $Results
  * @property \App\Model\Table\SettingsTable&\Cake\ORM\Association\HasMany $Settings
  * @property \App\Model\Table\TransactionsTable&\Cake\ORM\Association\HasMany $Transactions
- *
  * @method \App\Model\Entity\Session newEmptyEntity()
  * @method \App\Model\Entity\Session newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Session[] newEntities(array $data, array $options = [])
@@ -67,7 +65,7 @@ class SessionsTable extends Table
         $this->hasMany('Transactions', [
             'foreignKey' => 'session_id',
         ]);
-        
+
         $this->hasMany('Students', [
             'foreignKey' => 'session_id',
         ]);

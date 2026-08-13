@@ -1,4 +1,18 @@
 <?xml version="1.0"?>
 <ruleset name="App">
-    <rule ref="CakePHP"/>
+    <rule ref="CakePHP">
+        <!--
+          The application documents public HTTP and domain contracts where that
+          context helps a reader. Requiring boilerplate on every private helper
+          obscures those useful comments without improving runtime safety.
+        -->
+        <exclude name="CakePHP.Commenting.FunctionComment"/>
+
+        <!--
+          Long SQL fragments, audit text, and wire payload literals are clearer
+          as intact values. Other layout rules remain enforced by CakePHP's
+          standard.
+        -->
+        <exclude name="Generic.Files.LineLength"/>
+    </rule>
 </ruleset>

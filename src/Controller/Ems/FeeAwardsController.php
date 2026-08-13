@@ -45,8 +45,7 @@ class FeeAwardsController extends AppController
                 $filtered[] = $a;
             }
         }
-        usort($filtered, static fn ($a, $b) =>
-            strcmp((string)$a->status, (string)$b->status)
+        usort($filtered, static fn($a, $b) => strcmp((string)$a->status, (string)$b->status)
             ?: (strcmp((string)$b->awarded_on, (string)$a->awarded_on)
                 ?: strcmp((string)$a->name, (string)$b->name)));
 
@@ -57,7 +56,7 @@ class FeeAwardsController extends AppController
             array_map([FeeSerializer::class, 'award'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -132,7 +131,7 @@ class FeeAwardsController extends AppController
             'fee_award.granted',
             'fee_award',
             (string)$award->id,
-            sprintf('%s awarded to %s — %s off %s.', $name, $who, $worth, $target)
+            sprintf('%s awarded to %s — %s off %s.', $name, $who, $worth, $target),
         );
 
         return $this->json(FeeSerializer::award($award), 201);
@@ -165,7 +164,7 @@ class FeeAwardsController extends AppController
             'fee_award',
             (string)$award->id,
             sprintf('%s for %s ended. Invoices already issued keep it.', (string)$award->name, (string)$who),
-            $reason
+            $reason,
         );
 
         return $this->json(FeeSerializer::award($award));

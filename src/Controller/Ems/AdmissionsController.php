@@ -8,6 +8,7 @@ use App\Ems\Serializer\AdmissionSerializer;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
+use Cake\Utility\Text;
 
 /**
  * Admissions — cycles, the application queue, the reviewer state machine, and
@@ -61,6 +62,7 @@ class AdmissionsController extends AppController
     /**
      * GET /applications — paginated; query matches full name or number.
      */
+
     /** POST /admissions/cycles — open a new intake (administrator/registrar). */
     public function addCycle(): Response
     {
@@ -173,7 +175,7 @@ class AdmissionsController extends AppController
             array_map([AdmissionSerializer::class, 'application'], $rows->toList()),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -236,14 +238,14 @@ class AdmissionsController extends AppController
         if (!isset(self::TRANSITIONS[$action])) {
             $this->fail(409, sprintf(
                 Messages::APPLICATION_ILLEGAL_TRANSITION,
-                str_replace('_', ' ', (string)$application->status)
+                str_replace('_', ' ', (string)$application->status),
             ));
         }
         $rule = self::TRANSITIONS[$action];
         if (!in_array((string)$application->status, $rule['from'], true)) {
             $this->fail(409, sprintf(
                 Messages::APPLICATION_ILLEGAL_TRANSITION,
-                str_replace('_', ' ', (string)$application->status)
+                str_replace('_', ' ', (string)$application->status),
             ));
         }
 
@@ -273,7 +275,7 @@ class AdmissionsController extends AppController
         }
 
         $application->status = $rule['to'];
-        $applications->getConnection()->transactional(function () use ($applications, $application, $id, $rule, $note) {
+        $applications->getConnection()->transactional(function () use ($applications, $application, $id, $rule, $note): void {
             $applications->saveOrFail($application);
             $this->appendReview($id, $rule['to'], $note);
         });
@@ -303,11 +305,11 @@ class AdmissionsController extends AppController
                 Messages::ENROL_LEVEL_MISMATCH,
                 (string)$target->name,
                 (string)$target->level,
-                (string)$application->desired_level
+                (string)$application->desired_level,
             ));
         }
 
-        $applications->getConnection()->transactional(function () use ($applications, $application, $id, $target) {
+        $applications->getConnection()->transactional(function () use ($applications, $application, $id, $target): void {
             $student = $this->createStudentFromApplication($application, (string)$target->name);
             $this->createApplicationEnrolment($application, $student, $target);
             $this->createPrimaryGuardian($application, (string)$student->id);
@@ -368,7 +370,7 @@ class AdmissionsController extends AppController
         $number = $this->sequences()->next(
             $this->viewer->schoolId,
             'admission',
-            $this->maxAdmissionSuffix()
+            $this->maxAdmissionSuffix(),
         );
 
         $student = $students->newEntity([
@@ -392,7 +394,7 @@ class AdmissionsController extends AppController
     private function createApplicationEnrolment(
         EntityInterface $application,
         EntityInterface $student,
-        EntityInterface $target
+        EntityInterface $target,
     ): void {
         $cycle = $this->tenant()->query('EmsAdmissionCycles')
             ->where(['id' => $application->cycle_id])
@@ -446,7 +448,7 @@ class AdmissionsController extends AppController
             ->toList();
 
         foreach ($source as $doc) {
-            $newId = \Cake\Utility\Text::uuid();
+            $newId = Text::uuid();
             $newPath = $this->storage()->storagePathFor($this->viewer->schoolId, 'student', $studentId, $newId);
             $this->storage()->copyObject((string)$doc->storage_path, $newPath);
             $copy = $documents->newEntity([

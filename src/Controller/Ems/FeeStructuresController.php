@@ -6,6 +6,7 @@ namespace App\Controller\Ems;
 use App\Ems\Messages;
 use App\Ems\Money;
 use App\Ems\Serializer\FeeSerializer;
+use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 
 /**
@@ -42,7 +43,7 @@ class FeeStructuresController extends AppController
             array_map([FeeSerializer::class, 'structure'], $rows->toList()),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -85,7 +86,7 @@ class FeeStructuresController extends AppController
             if ($percent !== 100) {
                 $this->fail(422, sprintf(Messages::FEE_SCHEDULE_PERCENT, $percent));
             }
-            usort($schedule, static fn ($a, $b) => strcmp((string)$a['dueOn'], (string)$b['dueOn']));
+            usort($schedule, static fn($a, $b) => strcmp((string)$a['dueOn'], (string)$b['dueOn']));
         }
 
         $total = 0;
@@ -145,7 +146,7 @@ class FeeStructuresController extends AppController
         return $this->response->withStatus(204);
     }
 
-    private function findStructure(string $id): \Cake\Datasource\EntityInterface
+    private function findStructure(string $id): EntityInterface
     {
         return $this->findOr404('EmsFeeStructures', $id, Messages::STRUCTURE_NOT_FOUND);
     }

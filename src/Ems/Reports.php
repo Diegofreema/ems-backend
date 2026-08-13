@@ -6,6 +6,8 @@ namespace App\Ems;
 use App\Ems\Serializer\Wire;
 use Cake\Datasource\EntityInterface;
 use Cake\ORM\Locator\LocatorInterface;
+use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * The Reporting engine (document.md §3.21). Only preapproved definitions run —
@@ -34,23 +36,35 @@ class Reports
         'reconciliation_status' => ['title' => 'Reconciliation status', 'roles' => ['administrator', 'bursar'], 'rowLevel' => true],
     ];
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var \App\Ems\Grading */
-    private $grading;
+    /**
+     * @var \App\Ems\Grading
+     */
+    private Grading $grading;
 
-    /** @var \App\Ems\Fees */
-    private $fees;
+    /**
+     * @var \App\Ems\Fees
+     */
+    private Fees $fees;
 
-    /** @var string Server's real today (YYYY-MM-DD). */
-    private $today;
+    /**
+     * @var string Server's real today (YYYY-MM-DD).
+     */
+    private string $today;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
     public function __construct(LocatorInterface $locator, string $schoolId, Grading $grading, Fees $fees, string $today)
     {
@@ -95,8 +109,10 @@ class Reports
                 $changed = true;
             }
         }
-        if ((string)$job->status === 'ready' && $job->expires_on !== null
-            && Wire::date($job->expires_on) < $this->today) {
+        if (
+            (string)$job->status === 'ready' && $job->expires_on !== null
+            && Wire::date($job->expires_on) < $this->today
+        ) {
             $job->status = 'expired';
             $job->storage_path = null;
             $changed = true;
@@ -194,7 +210,7 @@ class Reports
         foreach ($counts as $stage => $n) {
             $pairs[] = ['stage' => (string)$stage, 'n' => $n];
         }
-        usort($pairs, fn ($a, $b) => $b['n'] <=> $a['n']);
+        usort($pairs, fn($a, $b) => $b['n'] <=> $a['n']);
         $rows = [];
         foreach ($pairs as $p) {
             $rows[] = [$p['stage'], (string)$p['n'], $total === 0 ? '0%' : Money::jsRound($p['n'] / $total * 100) . '%'];
@@ -223,9 +239,9 @@ class Reports
             }
             $students[] = $s;
         }
-        usort($students, fn ($a, $b) => strcmp(
+        usort($students, fn($a, $b) => strcmp(
             trim((string)$a->last_name . ' ' . (string)$a->first_name),
-            trim((string)$b->last_name . ' ' . (string)$b->first_name)
+            trim((string)$b->last_name . ' ' . (string)$b->first_name),
         ));
         $rows = [];
         foreach ($students as $s) {
@@ -246,8 +262,10 @@ class Reports
     {
         $term = $filters['term'] ?? null;
         $exams = [];
-        foreach ($this->tenant()->query('EmsExams')
-            ->where(['status' => 'published'])->all() as $e) {
+        foreach (
+            $this->tenant()->query('EmsExams')
+            ->where(['status' => 'published'])->all() as $e
+        ) {
             if (!$term || $term === 'all' || (string)$e->term === $term) {
                 $exams[] = $e;
             }
@@ -256,8 +274,10 @@ class Reports
         foreach ($exams as $exam) {
             $bands = $this->grading->schemeForExam($exam)['bands'];
             $buckets = [];
-            foreach ($this->tenant()->query('EmsExamGrades')
-                ->where(['exam_id' => (string)$exam->id])->all() as $g) {
+            foreach (
+                $this->tenant()->query('EmsExamGrades')
+                ->where(['exam_id' => (string)$exam->id])->all() as $g
+            ) {
                 if ($g->ca === null || $g->exam === null) {
                     continue;
                 }
@@ -351,11 +371,13 @@ class Reports
             $invoices[(string)$i->id] = $i;
         }
         $payments = [];
-        foreach ($this->tenant()->query('EmsPayments')
-            ->where(['channel' => 'provider'])->all() as $p) {
+        foreach (
+            $this->tenant()->query('EmsPayments')
+            ->where(['channel' => 'provider'])->all() as $p
+        ) {
             $payments[] = $p;
         }
-        usort($payments, fn ($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
+        usort($payments, fn($a, $b) => strcmp((string)$b->paid_on, (string)$a->paid_on));
         $rows = [];
         foreach ($payments as $p) {
             $s = $students[(string)$p->student_id] ?? null;
@@ -467,12 +489,12 @@ class Reports
 
     private function addDays(string $iso, int $days): string
     {
-        return (new \DateTimeImmutable($iso . ' 00:00:00', new \DateTimeZone('UTC')))
+        return (new DateTimeImmutable($iso . ' 00:00:00', new DateTimeZone('UTC')))
             ->modify('+' . $days . ' days')->format('Y-m-d');
     }
 
     /** @param mixed $value */
-    private function decodeFilters($value): array
+    private function decodeFilters(mixed $value): array
     {
         if (is_string($value)) {
             $decoded = json_decode($value, true);

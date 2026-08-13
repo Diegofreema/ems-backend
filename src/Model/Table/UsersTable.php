@@ -1,10 +1,8 @@
 <?php
-
-declare(strict_types = 1);
+declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -36,7 +34,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\TeachersTable&\Cake\ORM\Association\HasMany $Teachers
  * @property \App\Model\Table\TopicsTable&\Cake\ORM\Association\HasMany $Topics
  * @property \App\Model\Table\UserloginsTable&\Cake\ORM\Association\HasMany $Userlogins
- *
  * @method \App\Model\Entity\User newEmptyEntity()
  * @method \App\Model\Entity\User newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\User[] newEntities(array $data, array $options = [])
@@ -53,243 +50,244 @@ use Cake\Validation\Validator;
  */
 class UsersTable extends Table
 {
-/**
- * Initialize method
- *
- * @param array $config The configuration for the Table.
- * @return void
- */
-public function initialize(array $config): void
-{
-parent::initialize($config);
+    /**
+     * Initialize method
+     *
+     * @param array $config The configuration for the Table.
+     * @return void
+     */
+    public function initialize(array $config): void
+    {
+        parent::initialize($config);
 
-$this->setTable('users');
-$this->setDisplayField('username');
-$this->setPrimaryKey('id');
+        $this->setTable('users');
+        $this->setDisplayField('username');
+        $this->setPrimaryKey('id');
 
-$this->belongsTo('Roles', [
-'foreignKey' => 'role_id',
- 'joinType' => 'INNER',
-]);
-$this->belongsTo('Countries', [
-'foreignKey' => 'country_id',
- 'joinType' => 'INNER',
-]);
-$this->belongsTo('States', [
-'foreignKey' => 'state_id',
- 'joinType' => 'INNER',
-]);
-$this->belongsTo('Departments', [
-'foreignKey' => 'department_id',
- 'joinType' => 'INNER',
-]);
-$this->hasMany('Admins', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Admisionconditions', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Books', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Courseassignments', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Dstudents', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Feeallocations', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Fees', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Logs', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('News', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Notifications', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Results', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Sessions', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Sparents', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Staffmessages', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Studentmessages', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Students', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Subjects', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Teachers', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Topics', [
-'foreignKey' => 'user_id',
-]);
-$this->hasMany('Userlogins', [
-'foreignKey' => 'user_id',
-]);
-}
+        $this->belongsTo('Roles', [
+        'foreignKey' => 'role_id',
+        'joinType' => 'INNER',
+        ]);
+        $this->belongsTo('Countries', [
+        'foreignKey' => 'country_id',
+        'joinType' => 'INNER',
+        ]);
+        $this->belongsTo('States', [
+        'foreignKey' => 'state_id',
+        'joinType' => 'INNER',
+        ]);
+        $this->belongsTo('Departments', [
+        'foreignKey' => 'department_id',
+        'joinType' => 'INNER',
+        ]);
+        $this->hasMany('Admins', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Admisionconditions', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Books', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Courseassignments', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Dstudents', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Feeallocations', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Fees', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Logs', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('News', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Notifications', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Results', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Sessions', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Sparents', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Staffmessages', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Studentmessages', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Students', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Subjects', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Teachers', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Topics', [
+        'foreignKey' => 'user_id',
+        ]);
+        $this->hasMany('Userlogins', [
+        'foreignKey' => 'user_id',
+        ]);
+    }
 
-/**
- * Default validation rules.
- *
- * @param \Cake\Validation\Validator $validator Validator instance.
- * @return \Cake\Validation\Validator
- */
-public function validationDefault(Validator $validator): Validator
-{
-$validator
-->integer('id')
-->allowEmptyString('id', null, 'create');
+    /**
+     * Default validation rules.
+     *
+     * @param \Cake\Validation\Validator $validator Validator instance.
+     * @return \Cake\Validation\Validator
+     */
+    public function validationDefault(Validator $validator): Validator
+    {
+        $validator
+        ->integer('id')
+        ->allowEmptyString('id', null, 'create');
 
-$validator
-->scalar('username')
-->maxLength('username', 250)
-->requirePresence('username', 'create')
-->notEmptyString('username', 'Please provide a valid email address as your user name')
-->add('username', ['unique' => ['rule' => 'validateUnique', 'provider' => 'table', 'message' => 'username already exists']])
-//->add('username', 'valid-email', ['rule' => 'email'])
-->notEmptyString('username');
+        $validator
+        ->scalar('username')
+        ->maxLength('username', 250)
+        ->requirePresence('username', 'create')
+        ->notEmptyString('username', 'Please provide a valid email address as your user name')
+        ->add('username', ['unique' => ['rule' => 'validateUnique', 'provider' => 'table', 'message' => 'username already exists']])
+    //->add('username', 'valid-email', ['rule' => 'email'])
+        ->notEmptyString('username');
 
-$validator
-->scalar('password')
-->maxLength('password', 230)
-->requirePresence('password', 'create')
-->add('password', ['length' => ['rule' => ['minLength', 6],
- 'message' => 'Invalid password. password must not be less than six characters',]])
-->notEmptyString('password');
+        $validator
+        ->scalar('password')
+        ->maxLength('password', 230)
+        ->requirePresence('password', 'create')
+        ->add('password', ['length' => ['rule' => ['minLength', 6],
+        'message' => 'Invalid password. password must not be less than six characters',]])
+        ->notEmptyString('password');
 
-$validator
-->add('cpassword', [
-'equalToPassword' => [
-'rule' => function ($value, $context) {
-return $value === $context['data']['password'];
-},
- 'message' => __("Password mismatch, both password must match.")
-]
-]);
-$validator
-->add('currentpass', 'custom', [
-'rule' => function($value, $context){
-$user = $this->get($context['data']['id']);
-if ($user) {
-if ((new DefaultPasswordHasher)->check($value, $user->password)) {
-return true;
-}
-}
-return false;
-},
- 'message' => 'The old password does not match the current password!',
-])
-->allowEmptyString('currentpass');
+        $validator
+        ->add('cpassword', [
+        'equalToPassword' => [
+        'rule' => function ($value, $context) {
+            return $value === $context['data']['password'];
+        },
+        'message' => __('Password mismatch, both password must match.'),
+        ],
+        ]);
+        $validator
+        ->add('currentpass', 'custom', [
+        'rule' => function ($value, $context) {
+            $user = $this->get($context['data']['id']);
+            if ($user) {
+                if ((new DefaultPasswordHasher())->check($value, $user->password)) {
+                    return true;
+                }
+            }
 
-$validator
-->scalar('fname')
-->maxLength('fname', 64)
-->requirePresence('fname', 'create')
-->notEmptyString('fname');
+            return false;
+        },
+        'message' => 'The old password does not match the current password!',
+        ])
+        ->allowEmptyString('currentpass');
 
-$validator
-->scalar('lname')
-->maxLength('lname', 64)
-->requirePresence('lname', 'create')
-->notEmptyString('lname');
+        $validator
+        ->scalar('fname')
+        ->maxLength('fname', 64)
+        ->requirePresence('fname', 'create')
+        ->notEmptyString('fname');
 
-$validator
-->scalar('mname')
-->maxLength('mname', 64)
-->allowEmptyString('mname');
+        $validator
+        ->scalar('lname')
+        ->maxLength('lname', 64)
+        ->requirePresence('lname', 'create')
+        ->notEmptyString('lname');
 
-$validator
-->scalar('gender')
-->maxLength('gender', 15)
-->requirePresence('gender', 'create')
-->notEmptyString('gender');
+        $validator
+        ->scalar('mname')
+        ->maxLength('mname', 64)
+        ->allowEmptyString('mname');
 
-$validator
-->scalar('address')
-->maxLength('address', 250)
-->requirePresence('address', 'create')
-->notEmptyString('address');
+        $validator
+        ->scalar('gender')
+        ->maxLength('gender', 15)
+        ->requirePresence('gender', 'create')
+        ->notEmptyString('gender');
 
-$validator
-->scalar('phone')
-->maxLength('phone', 32)
-->requirePresence('phone', 'create')
-->notEmptyString('phone');
+        $validator
+        ->scalar('address')
+        ->maxLength('address', 250)
+        ->requirePresence('address', 'create')
+        ->notEmptyString('address');
 
-$validator
-->scalar('profile')
-->allowEmptyFile('profile');
+        $validator
+        ->scalar('phone')
+        ->maxLength('phone', 32)
+        ->requirePresence('phone', 'create')
+        ->notEmptyString('phone');
 
-$validator
-->scalar('dob')
-->maxLength('dob', 64)
-->allowEmptyString('dob');
+        $validator
+        ->scalar('profile')
+        ->allowEmptyFile('profile');
 
-$validator
-->dateTime('created_date')
-->notEmptyDateTime('created_date');
+        $validator
+        ->scalar('dob')
+        ->maxLength('dob', 64)
+        ->allowEmptyString('dob');
 
-$validator
-->integer('created_by')
-->requirePresence('created_by', 'create')
-->notEmptyString('created_by');
+        $validator
+        ->dateTime('created_date')
+        ->notEmptyDateTime('created_date');
 
-$validator
-->scalar('passport')
-->maxLength('passport', 128)
-->allowEmptyString('passport');
+        $validator
+        ->integer('created_by')
+        ->requirePresence('created_by', 'create')
+        ->notEmptyString('created_by');
 
-$validator
-->scalar('useruniquid')
-->maxLength('useruniquid', 28)
-->requirePresence('useruniquid', 'create')
-->notEmptyString('useruniquid');
+        $validator
+        ->scalar('passport')
+        ->maxLength('passport', 128)
+        ->allowEmptyString('passport');
 
-$validator
-->scalar('userstatus')
-->maxLength('userstatus', 30)
-->notEmptyString('userstatus');
+        $validator
+        ->scalar('useruniquid')
+        ->maxLength('useruniquid', 28)
+        ->requirePresence('useruniquid', 'create')
+        ->notEmptyString('useruniquid');
 
-$validator
-->scalar('verification_key')
-->maxLength('verification_key', 188)
-->allowEmptyString('verification_key');
+        $validator
+        ->scalar('userstatus')
+        ->maxLength('userstatus', 30)
+        ->notEmptyString('userstatus');
 
-return $validator;
-}
+        $validator
+        ->scalar('verification_key')
+        ->maxLength('verification_key', 188)
+        ->allowEmptyString('verification_key');
 
-/**
- * Returns a rules checker object that will be used for validating
- * application integrity.
- *
- * @param \Cake\ORM\RulesChecker $rules The rules object to be modified.
- * @return \Cake\ORM\RulesChecker
- */
-public function buildRules(RulesChecker $rules): RulesChecker
-{
-$rules->add($rules->isUnique(['username']));
-$rules->add($rules->existsIn(['role_id'], 'Roles'));
-$rules->add($rules->existsIn(['country_id'], 'Countries'));
-$rules->add($rules->existsIn(['state_id'], 'States'));
-$rules->add($rules->existsIn(['department_id'], 'Departments'));
+        return $validator;
+    }
 
-return $rules;
-}
+    /**
+     * Returns a rules checker object that will be used for validating
+     * application integrity.
+     *
+     * @param \Cake\ORM\RulesChecker $rules The rules object to be modified.
+     * @return \Cake\ORM\RulesChecker
+     */
+    public function buildRules(RulesChecker $rules): RulesChecker
+    {
+        $rules->add($rules->isUnique(['username']));
+        $rules->add($rules->existsIn(['role_id'], 'Roles'));
+        $rules->add($rules->existsIn(['country_id'], 'Countries'));
+        $rules->add($rules->existsIn(['state_id'], 'States'));
+        $rules->add($rules->existsIn(['department_id'], 'Departments'));
+
+        return $rules;
+    }
 }

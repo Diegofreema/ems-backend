@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -13,7 +12,6 @@ use Cake\Validation\Validator;
  *
  * @property \App\Model\Table\FeesTable&\Cake\ORM\Association\BelongsTo $Fees
  * @property \App\Model\Table\SponsorshipsTable&\Cake\ORM\Association\BelongsTo $Sponsorships
- *
  * @method \App\Model\Entity\FeesSponsorship newEmptyEntity()
  * @method \App\Model\Entity\FeesSponsorship newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\FeesSponsorship[] newEntities(array $data, array $options = [])

@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Model\Table;
 
 use Cake\ORM\Table;
@@ -12,7 +14,7 @@ class StudentsClassesTable extends Table
         $this->setPrimaryKey('id');
 
         $this->belongsTo('Students', ['foreignKey' => 'student_id']);
-        $this->belongsTo('Classes',  ['foreignKey' => 'class_id']);
-        $this->belongsTo('Terms',    ['foreignKey' => 'term_id']);
+        $this->belongsTo('Classes', ['foreignKey' => 'class_id']);
+        $this->belongsTo('Terms', ['foreignKey' => 'term_id']);
     }
 }

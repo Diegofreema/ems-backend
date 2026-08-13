@@ -76,7 +76,7 @@ abstract class EmsTable extends Table
             }
         });
 
-        $this->getEventManager()->on('Model.beforeMarshal', function ($event, $data) {
+        $this->getEventManager()->on('Model.beforeMarshal', function ($event, $data): void {
             if (
                 isset($data['subject']) && is_string($data['subject']) && $data['subject'] !== ''
                 && empty($data['subject_id']) && !empty($data['school_id'])

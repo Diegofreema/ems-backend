@@ -26,20 +26,30 @@ class Dashboard
     private const UPCOMING_SITTINGS = 5;
     private const ANNOUNCEMENTS = 3;
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var \App\Ems\Fees */
-    private $fees;
+    /**
+     * @var \App\Ems\Fees
+     */
+    private Fees $fees;
 
-    /** @var string Server's real today (YYYY-MM-DD). */
-    private $today;
+    /**
+     * @var string Server's real today (YYYY-MM-DD).
+     */
+    private string $today;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
     public function __construct(LocatorInterface $locator, string $schoolId, Fees $fees, string $today)
     {
@@ -101,7 +111,7 @@ class Dashboard
         if ($terms === []) {
             return null;
         }
-        usort($terms, fn ($a, $b) => strcmp(Wire::date($a->starts_on), Wire::date($b->starts_on)));
+        usort($terms, fn($a, $b) => strcmp(Wire::date($a->starts_on), Wire::date($b->starts_on)));
 
         $current = null;
         foreach ($terms as $t) {
@@ -150,7 +160,7 @@ class Dashboard
             'activeTeachers' => $activeTeachers,
             'classCount' => $this->tenant()->query('EmsClassGroups')->count(),
             'studentTeacherRatio' => Wire::num(
-                $activeTeachers === 0 ? 0 : $byStatus['enrolled'] / $activeTeachers
+                $activeTeachers === 0 ? 0 : $byStatus['enrolled'] / $activeTeachers,
             ),
         ];
     }
@@ -256,27 +266,28 @@ class Dashboard
         $schedules = $this->tenant()->query('EmsExamSchedules')
             ->where(['date >=' => $this->today])
             ->all()->toList();
-        usort($schedules, fn ($a, $b) =>
-            strcmp(Wire::date($a->date), Wire::date($b->date))
+        usort($schedules, fn($a, $b) => strcmp(Wire::date($a->date), Wire::date($b->date))
                 ?: strcmp((string)$a->start_time, (string)$b->start_time));
         $schedules = array_slice($schedules, 0, self::UPCOMING_SITTINGS);
         if ($schedules === []) {
             return [];
         }
 
-        $examIds = array_values(array_unique(array_map(fn ($s) => (string)$s->exam_id, $schedules)));
+        $examIds = array_values(array_unique(array_map(fn($s) => (string)$s->exam_id, $schedules)));
         $titleById = [];
-        foreach ($this->tenant()->query('EmsExams')
+        foreach (
+            $this->tenant()->query('EmsExams')
             ->select(['id', 'title'])
             ->where(['id IN' => $examIds])
-            ->all() as $e) {
+            ->all() as $e
+        ) {
             $titleById[(string)$e->id] = (string)$e->title;
         }
 
         return array_map(
-            fn ($s) => ExamSerializer::schedule($s)
+            fn($s) => ExamSerializer::schedule($s)
                 + ['examTitle' => $titleById[(string)$s->exam_id] ?? 'Examination'],
-            $schedules
+            $schedules,
         );
     }
 
@@ -293,13 +304,13 @@ class Dashboard
 
             return strcmp(
                 Wire::date($b->published_on) ?? '',
-                Wire::date($a->published_on) ?? ''
+                Wire::date($a->published_on) ?? '',
             );
         });
 
         return array_map(
             [CommsSerializer::class, 'announcement'],
-            array_slice($rows, 0, self::ANNOUNCEMENTS)
+            array_slice($rows, 0, self::ANNOUNCEMENTS),
         );
     }
 

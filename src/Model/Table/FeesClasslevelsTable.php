@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Model\Table;
 
 use Cake\ORM\Table;
@@ -11,7 +13,7 @@ class FeesClasslevelsTable extends Table
         $this->setTable('fees_classlevels');
         $this->setPrimaryKey('id');
 
-        $this->belongsTo('Fees',        ['foreignKey' => 'fee_id']);
+        $this->belongsTo('Fees', ['foreignKey' => 'fee_id']);
         $this->belongsTo('ClassLevels', ['foreignKey' => 'class_level_id']);
     }
 }

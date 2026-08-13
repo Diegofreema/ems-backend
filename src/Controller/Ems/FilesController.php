@@ -58,7 +58,7 @@ class FilesController extends AppController
                 'document.link_refused',
                 'document',
                 (string)$grant->document_id,
-                Messages::LINK_REFUSED_SUMMARY
+                Messages::LINK_REFUSED_SUMMARY,
             );
             $this->fail(403, Messages::LINK_WRONG_READER);
         }
@@ -83,7 +83,7 @@ class FilesController extends AppController
             'document.downloaded',
             'document',
             (string)$document->id,
-            sprintf('Opened "%s".', (string)$document->name)
+            sprintf('Opened "%s".', (string)$document->name),
         );
 
         return $this->json([
@@ -137,7 +137,7 @@ class FilesController extends AppController
     {
         $text = sprintf(
             "%s\n\nThis record has no stored file behind it.",
-            (string)$document->name
+            (string)$document->name,
         );
 
         return [

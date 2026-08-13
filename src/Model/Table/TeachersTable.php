@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
@@ -22,7 +21,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\PayslipsTable&\Cake\ORM\Association\HasMany $Payslips
  * @property \App\Model\Table\StaffmessagesTable&\Cake\ORM\Association\HasMany $Staffmessages
  * @property \App\Model\Table\SubjectsTable&\Cake\ORM\Association\BelongsToMany $Subjects
- *
  * @method \App\Model\Entity\Teacher newEmptyEntity()
  * @method \App\Model\Entity\Teacher newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Teacher[] newEntities(array $data, array $options = [])
@@ -181,19 +179,21 @@ class TeachersTable extends Table
         $rules->add($rules->existsIn(['user_id'], 'Users'));
         $rules->add($rules->existsIn(['country_id'], 'Countries'));
         $rules->add($rules->existsIn(['state_id'], 'States'));
-        
+
         // Custom rule for department_id - only validate if not null
         $rules->add(function ($entity, $options) {
             if ($entity->department_id !== null) {
                 $departmentsTable = TableRegistry::get('Departments');
+
                 return $departmentsTable->exists(['id' => $entity->department_id]);
             }
+
             return true;
         }, 'departmentExists', [
             'errorField' => 'department_id',
-            'message' => 'The selected department does not exist'
+            'message' => 'The selected department does not exist',
         ]);
-        
+
         $rules->add($rules->existsIn(['staffgrade_id'], 'Staffgrades'));
         $rules->add($rules->existsIn(['staffdepartment_id'], 'Staffdepartments'));
 

@@ -19,11 +19,15 @@ use Cake\Utility\Text;
  */
 class DocumentWriter
 {
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var \App\Ems\Storage */
-    private $storage;
+    /**
+     * @var \App\Ems\Storage
+     */
+    private Storage $storage;
 
     public function __construct(LocatorInterface $locator, Storage $storage)
     {

@@ -41,7 +41,7 @@ final class RefreshTokens
         EmsRefreshTokensTable $tokens,
         string $userId,
         int $now,
-        ?string $familyId = null
+        ?string $familyId = null,
     ): array {
         $raw = bin2hex(Security::randomBytes(32));
         $expiresAt = $now + (int)Configure::read('Jwt.refreshTtl', self::DEFAULT_TTL);

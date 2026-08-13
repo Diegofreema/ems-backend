@@ -52,7 +52,7 @@ class StudentAnswer extends Entity
      *
      * @return bool
      */
-    public function isMultipleChoice()
+    public function isMultipleChoice(): bool
     {
         return !empty($this->selected_option_id);
     }
@@ -62,7 +62,7 @@ class StudentAnswer extends Entity
      *
      * @return bool
      */
-    public function isTheory()
+    public function isTheory(): bool
     {
         return !empty($this->theory_answer);
     }
@@ -72,7 +72,7 @@ class StudentAnswer extends Entity
      *
      * @return bool|null
      */
-    public function isCorrect()
+    public function isCorrect(): ?bool
     {
         if (!$this->isMultipleChoice() || empty($this->question_option)) {
             return null;
@@ -86,7 +86,7 @@ class StudentAnswer extends Entity
      *
      * @return string|null
      */
-    public function getSelectedOptionText()
+    public function getSelectedOptionText(): ?string
     {
         if (!$this->isMultipleChoice() || empty($this->question_option)) {
             return null;
@@ -100,7 +100,7 @@ class StudentAnswer extends Entity
      *
      * @return string|null
      */
-    public function getTheoryAnswerText()
+    public function getTheoryAnswerText(): ?string
     {
         return $this->theory_answer;
     }
@@ -110,7 +110,7 @@ class StudentAnswer extends Entity
      *
      * @return bool
      */
-    public function isGraded()
+    public function isGraded(): bool
     {
         if ($this->isMultipleChoice()) {
             return true; // Multiple choice is auto-graded
@@ -124,7 +124,7 @@ class StudentAnswer extends Entity
      *
      * @return int|null
      */
-    public function getScore()
+    public function getScore(): ?int
     {
         if ($this->isMultipleChoice()) {
             return $this->isCorrect() ? $this->question->points : 0;
@@ -138,7 +138,7 @@ class StudentAnswer extends Entity
      *
      * @return int|null
      */
-    public function getMaxScore()
+    public function getMaxScore(): ?int
     {
         if (empty($this->question)) {
             return null;
@@ -152,7 +152,7 @@ class StudentAnswer extends Entity
      *
      * @return float|null
      */
-    public function getScorePercentage()
+    public function getScorePercentage(): ?float
     {
         $score = $this->getScore();
         $maxScore = $this->getMaxScore();
@@ -161,6 +161,6 @@ class StudentAnswer extends Entity
             return null;
         }
 
-        return ($score / $maxScore) * 100;
+        return $score / $maxScore * 100;
     }
 }

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -15,7 +14,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\PositionsTable&\Cake\ORM\Association\BelongsTo $Positions
  * @property \App\Model\Table\SessionsTable&\Cake\ORM\Association\BelongsTo $Sessions
  * @property \App\Model\Table\VotesTable&\Cake\ORM\Association\HasMany $Votes
- *
  * @method \App\Model\Entity\Candidate newEmptyEntity()
  * @method \App\Model\Entity\Candidate newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Candidate[] newEntities(array $data, array $options = [])

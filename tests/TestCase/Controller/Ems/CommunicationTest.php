@@ -180,7 +180,7 @@ class CommunicationTest extends EmsIntegrationTestCase
                 'school_id' => $this->schoolId,
                 'status' => 'sent',
             ]),
-            $notification['recipientCount']
+            $notification['recipientCount'],
         );
         $this->assertSame(1, $this->rowCount('ems_message_recipients', [
             'school_id' => $this->schoolId,
@@ -220,13 +220,13 @@ class CommunicationTest extends EmsIntegrationTestCase
             'Ayo',
             'Alex',
             'Parent',
-            'family@test.school'
+            'family@test.school',
         );
         [$secondStudent, $secondGuardian] = $this->seedStudentAndGuardian(
             'Bola',
             'Pat',
             'Parent',
-            'family@test.school'
+            'family@test.school',
         );
         $parentUserId = Text::uuid();
         $this->insertRow('ems_users', [
@@ -288,7 +288,7 @@ class CommunicationTest extends EmsIntegrationTestCase
         string $studentFirstName,
         string $guardianFirstName,
         string $guardianLastName,
-        string $email
+        string $email,
     ): array {
         $studentId = Text::uuid();
         $this->insertRow('ems_students', [

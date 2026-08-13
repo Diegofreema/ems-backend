@@ -6,6 +6,8 @@ namespace App\Ems;
 use Cake\Datasource\EntityInterface;
 use Cake\Log\Log;
 use Cake\ORM\Locator\LocatorInterface;
+use DateTimeImmutable;
+use DateTimeZone;
 use Throwable;
 
 /**
@@ -54,20 +56,30 @@ class Comms
         ],
     ];
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var string */
-    private $today;
+    /**
+     * @var string
+     */
+    private string $today;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
-    /** @var string|null */
-    private $schoolName;
+    /**
+     * @var string|null
+     */
+    private ?string $schoolName = null;
 
     public function __construct(LocatorInterface $locator, string $schoolId, string $today)
     {
@@ -122,6 +134,7 @@ class Comms
     {
         if (strpos($address, '@') !== false) {
             [$name, $domain] = explode('@', $address, 2);
+
             return substr($name, 0, 2) . str_repeat('•', max(strlen($name) - 2, 1)) . '@' . $domain;
         }
 
@@ -190,6 +203,7 @@ class Comms
                 $students[(string)$student->id] = $student;
             }
         }
+
         return $this->guardianMembers($students, $channel);
     }
 
@@ -369,7 +383,7 @@ class Comms
      * are student relationships, so the same household can appear more than
      * once when siblings attend the school.
      *
-     * @param array<string,EntityInterface> $students
+     * @param array<string,\Cake\Datasource\EntityInterface> $students
      * @return array<int,array{personId:string,personName:string,personKind:string,aboutStudentName:?string,address:string}>
      */
     private function guardianMembers(array $students, string $channel): array
@@ -388,7 +402,7 @@ class Comms
                 $members[$index]['aboutStudentName'] = mb_substr(
                     (string)$members[$index]['aboutStudentName'] . ', ' . $studentName,
                     0,
-                    190
+                    190,
                 );
                 continue;
             }
@@ -521,9 +535,11 @@ class Comms
         foreach ($this->invoices() as $invoice) {
             $net = (int)($paid[(string)$invoice->id] ?? 0);
             $balance = (int)$invoice->total - $net;
-            if ((string)$invoice->status !== 'cancelled'
+            if (
+                (string)$invoice->status !== 'cancelled'
                 && Serializer\Wire::date($invoice->due_date) < $this->today
-                && $balance > 0) {
+                && $balance > 0
+            ) {
                 $count++;
                 $outstanding += $balance;
                 $studentIds[(string)$invoice->student_id] = true;
@@ -544,7 +560,7 @@ class Comms
             }
         }
 
-        return array_keys(array_filter($absences, fn ($count) => $count >= self::ABSENCE_THRESHOLD));
+        return array_keys(array_filter($absences, fn($count) => $count >= self::ABSENCE_THRESHOLD));
     }
 
     /** @return array<int,string> */
@@ -564,7 +580,7 @@ class Comms
     {
         $exams = $this->tenant()->query('EmsExams')
             ->where(['status' => 'published'])->all()->toList();
-        usort($exams, fn ($a, $b) => strcmp((string)$b->end_date, (string)$a->end_date));
+        usort($exams, fn($a, $b) => strcmp((string)$b->end_date, (string)$a->end_date));
 
         return $exams[0] ?? null;
     }
@@ -588,7 +604,7 @@ class Comms
 
     private function isoAddDays(string $iso, int $days): string
     {
-        return (new \DateTimeImmutable($iso . ' 00:00:00', new \DateTimeZone('UTC')))
+        return (new DateTimeImmutable($iso . ' 00:00:00', new DateTimeZone('UTC')))
             ->modify(($days >= 0 ? '+' : '') . $days . ' days')
             ->format('Y-m-d');
     }

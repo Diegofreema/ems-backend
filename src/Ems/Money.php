@@ -27,9 +27,9 @@ final class Money
     /**
      * JS Math.round replicated exactly for non-negative values.
      *
-     * @param int|float $v
+     * @param float|int $v
      */
-    public static function jsRound($v): int
+    public static function jsRound(int|float $v): int
     {
         return (int)floor((float)$v + 0.5);
     }
@@ -273,9 +273,9 @@ final class Money
      * 9000000 → "₦90,000"; 833325 → "₦8,333.25"; -50000 → "-₦500". Used in the
      * verbatim error messages and audit summaries, so it must match to the byte.
      *
-     * @param int|float $amount
+     * @param float|int $amount
      */
-    public static function formatCurrency($amount): string
+    public static function formatCurrency(int|float $amount): string
     {
         $sign = $amount < 0 ? '-' : '';
         $kobo = abs(self::jsRound($amount));

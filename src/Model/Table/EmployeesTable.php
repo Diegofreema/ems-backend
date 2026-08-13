@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -17,7 +16,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\StaffdepartmentsTable&\Cake\ORM\Association\BelongsTo $Staffdepartments
  * @property \App\Model\Table\UsersTable&\Cake\ORM\Association\BelongsTo $Users
  * @property \App\Model\Table\AdminsTable&\Cake\ORM\Association\BelongsTo $Admins
- *
  * @method \App\Model\Entity\Employee newEmptyEntity()
  * @method \App\Model\Entity\Employee newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Employee[] newEntities(array $data, array $options = [])
@@ -74,7 +72,7 @@ class EmployeesTable extends Table
         ]);
          $this->hasMany('Payslips', [
             'foreignKey' => 'employee_id',
-        ]);
+         ]);
     }
 
     /**

@@ -14,7 +14,9 @@ use RuntimeException;
  */
 final class RefreshDenied extends RuntimeException
 {
-    /** @var int The HTTP status AuthController should respond with. */
+    /**
+     * @var int The HTTP status AuthController should respond with.
+     */
     public int $statusCode;
 
     private function __construct(int $statusCode, string $message)

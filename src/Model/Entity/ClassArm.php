@@ -54,11 +54,12 @@ class ClassArm extends Entity
      *
      * @return string
      */
-    public function getFullClassName()
+    public function getFullClassName(): string
     {
         if (!empty($this->department)) {
             return $this->department->name . ' ' . $this->arm_name;
         }
+
         return $this->arm_name;
     }
 
@@ -67,11 +68,12 @@ class ClassArm extends Entity
      *
      * @return string|null
      */
-    public function getClassTeacherName()
+    public function getClassTeacherName(): ?string
     {
         if (!empty($this->teacher) && !empty($this->teacher->user)) {
             return $this->teacher->user->fname . ' ' . $this->teacher->user->lname;
         }
+
         return null;
     }
 
@@ -80,11 +82,12 @@ class ClassArm extends Entity
      *
      * @return int
      */
-    public function getStudentCount()
+    public function getStudentCount(): int
     {
         if (!empty($this->students)) {
             return count($this->students);
         }
+
         return 0;
     }
 }

@@ -18,17 +18,17 @@ class Audit
     /**
      * @var \Cake\ORM\Locator\LocatorInterface
      */
-    private $locator;
+    private LocatorInterface $locator;
 
     /**
      * @var string
      */
-    private $requestId;
+    private string $requestId;
 
     /**
      * @var string
      */
-    private $ipAddress;
+    private string $ipAddress;
 
     public function __construct(LocatorInterface $locator, string $requestId = '', string $ipAddress = '')
     {
@@ -46,7 +46,7 @@ class Audit
         ?string $reason = null,
         string $outcome = 'success',
         ?array $before = null,
-        ?array $after = null
+        ?array $after = null,
     ): void {
         $events = $this->locator->get('EmsAuditEvents');
         [$keyId, $key] = FinanceKeys::active();

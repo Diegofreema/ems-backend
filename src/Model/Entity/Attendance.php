@@ -54,7 +54,7 @@ class Attendance extends Entity
      *
      * @return string
      */
-    public function getStatusBadgeClass()
+    public function getStatusBadgeClass(): string
     {
         switch ($this->status) {
             case 'present':
@@ -75,7 +75,7 @@ class Attendance extends Entity
      *
      * @return string
      */
-    public function getStatusDisplay()
+    public function getStatusDisplay(): string
     {
         switch ($this->status) {
             case 'present':

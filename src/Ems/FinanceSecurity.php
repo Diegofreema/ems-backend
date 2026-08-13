@@ -7,7 +7,10 @@ use Cake\Datasource\EntityInterface;
 use Cake\Http\Exception\HttpException;
 use Cake\I18n\FrozenTime;
 use Cake\ORM\Locator\LocatorInterface;
+use Cake\ORM\Query\SelectQuery;
 use Cake\Utility\Text;
+use DateTimeImmutable;
+use RuntimeException;
 
 /** Server authority for immutable finance writes and their integrity seals. */
 final class FinanceSecurity
@@ -83,7 +86,7 @@ final class FinanceSecurity
         if ($payerName === '' || $relationship === '') {
             throw new HttpException('Payer name and relationship to the student are required.', 422);
         }
-        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $receivedOn);
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $receivedOn);
         if ($date === false || $date->format('Y-m-d') !== $receivedOn || $receivedOn > date('Y-m-d')) {
             throw new HttpException('Enter a valid payment date that is not in the future.', 422);
         }
@@ -97,9 +100,11 @@ final class FinanceSecurity
         if ($amount > $balance || $balance <= 0) {
             throw new HttpException('The amount cannot exceed the invoice balance.', 422);
         }
-        if ($method === 'cash' && $this->tenant('EmsPaymentSubmissions')->where([
+        if (
+            $method === 'cash' && $this->tenant('EmsPaymentSubmissions')->where([
             'cash_batch_id' => (string)$body['cashBatchId'], 'cash_acknowledgement' => $cashAck,
-        ])->count() > 0) {
+            ])->count() > 0
+        ) {
             throw new HttpException('This cash acknowledgement is already recorded in the batch.', 409);
         }
 
@@ -342,7 +347,7 @@ final class FinanceSecurity
             ->toList();
         try {
             $previous = FinanceChain::tipHash($chainRows);
-        } catch (\RuntimeException $exception) {
+        } catch (RuntimeException $exception) {
             throw new HttpException('Finance writes are locked because the ledger chain is invalid.', 423, $exception);
         }
         $id = Text::uuid();
@@ -374,9 +379,11 @@ final class FinanceSecurity
             'statement_row_id' => (string)$submission->statement_row_id,
             'id !=' => (string)$submission->id,
         ])->all()->extract('id')->toList();
-        if ($claims !== [] && $this->tenant('EmsFinanceDecisions')->where([
+        if (
+            $claims !== [] && $this->tenant('EmsFinanceDecisions')->where([
             'request_type' => 'payment_submission', 'request_id IN' => $claims, 'decision' => 'approved',
-        ])->count() > 0) {
+            ])->count() > 0
+        ) {
             throw new HttpException('This bank statement row has already verified another payment.', 409);
         }
         if ((string)$submission->method === 'cheque' && stripos((string)$row->description, 'cleared') === false) {
@@ -423,7 +430,7 @@ final class FinanceSecurity
         return $row ? (int)$row->total : 0;
     }
 
-    private function tenant(string $table)
+    private function tenant(string $table): SelectQuery
     {
         return $this->locator->get($table)->find()->where([$table . '.school_id' => $this->schoolId]);
     }
@@ -449,7 +456,7 @@ final class FinanceSecurity
     {
         try {
             return FinanceKeys::active();
-        } catch (\RuntimeException $exception) {
+        } catch (RuntimeException $exception) {
             throw new HttpException('Finance signing keys are not configured; writes are disabled.', 503);
         }
     }

@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Controller\Ems;
 
 use App\Ems\Messages;
-use App\Ems\SubjectCatalog;
 use App\Ems\Serializer\ClassSerializer;
 use App\Ems\Serializer\StudentSerializer;
+use App\Ems\SubjectCatalog;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenTime;
@@ -100,7 +100,7 @@ class ClassesController extends AppController
 
         return $this->json(array_map(
             [StudentSerializer::class, 'one'],
-            $this->rosterRows($group)
+            $this->rosterRows($group),
         ));
     }
 
@@ -220,7 +220,7 @@ class ClassesController extends AppController
         $viewer = $this->viewer;
         $schoolId = $viewer->schoolId;
         $sessions->getConnection()->transactional(
-            function () use ($sessions, $records, $session, $group, $date, $entries, $reason, $viewer, $schoolId) {
+            function () use ($sessions, $records, $session, $group, $date, $entries, $reason, $viewer, $schoolId): void {
                 $now = FrozenTime::now('UTC');
                 if ($session === null) {
                     $sessions->saveOrFail($sessions->newEntity([
@@ -269,7 +269,7 @@ class ClassesController extends AppController
                         ]));
                     }
                 }
-            }
+            },
         );
 
         return $this->json(null, 204);
@@ -348,7 +348,7 @@ class ClassesController extends AppController
         if (array_key_exists('capacity', $body)) {
             $group->capacity = (int)$body['capacity'];
         }
-        $groups->getConnection()->transactional(function () use ($groups, $group, $was, $name) {
+        $groups->getConnection()->transactional(function () use ($groups, $group, $was, $name): void {
             $groups->saveOrFail($group);
             if ($was !== $name) {
                 $this->fetchTable('EmsStudents')->updateAll(
@@ -635,7 +635,7 @@ class ClassesController extends AppController
                 $counts[(string)$group->name] ?? 0,
                 $group->form_teacher_id === null
                     ? null
-                    : ($teacherNames[(string)$group->form_teacher_id] ?? null)
+                    : ($teacherNames[(string)$group->form_teacher_id] ?? null),
             );
         }
 

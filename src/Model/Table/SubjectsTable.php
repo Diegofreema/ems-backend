@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -23,7 +22,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\DepartmentsTable&\Cake\ORM\Association\BelongsToMany $Departments
  * @property \App\Model\Table\StudentsTable&\Cake\ORM\Association\BelongsToMany $Students
  * @property \App\Model\Table\TeachersTable&\Cake\ORM\Association\BelongsToMany $Teachers
- *
  * @method \App\Model\Entity\Subject newEmptyEntity()
  * @method \App\Model\Entity\Subject newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Subject[] newEntities(array $data, array $options = [])
@@ -159,11 +157,11 @@ class SubjectsTable extends Table
         $rules->add($rules->existsIn(['user_id'], 'Users'));
         // $rules->add($rules->existsIn(['semester_id'], 'Semesters'));
         // $rules->add($rules->existsIn(['level_id'], 'Levels'));
-        
+
         // Add unique constraint: subject name must be unique per department/class
         $rules->add(
             $rules->isUnique(['name', 'department_id'], 'This subject already exists in the selected class.'),
-            'uniqueSubjectPerClass'
+            'uniqueSubjectPerClass',
         );
 
         return $rules;

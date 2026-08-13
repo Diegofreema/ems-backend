@@ -52,13 +52,13 @@ class Question extends Entity
      *
      * @return string
      */
-    protected function _getQuestionTypeLabel()
+    protected function _getQuestionTypeLabel(): string
     {
         $types = [
             'multiple_choice' => 'Multiple Choice',
-            'theory' => 'Theory/Essay'
+            'theory' => 'Theory/Essay',
         ];
-        
+
         return $types[$this->question_type] ?? $this->question_type;
     }
 
@@ -67,14 +67,14 @@ class Question extends Entity
      *
      * @return string
      */
-    protected function _getDifficultyLevelLabel()
+    protected function _getDifficultyLevelLabel(): string
     {
         $levels = [
             'easy' => 'Easy',
             'medium' => 'Medium',
-            'hard' => 'Hard'
+            'hard' => 'Hard',
         ];
-        
+
         return $levels[$this->difficulty_level] ?? $this->difficulty_level;
     }
 
@@ -83,7 +83,7 @@ class Question extends Entity
      *
      * @return bool
      */
-    public function isMultipleChoice()
+    public function isMultipleChoice(): bool
     {
         return $this->question_type === 'multiple_choice';
     }
@@ -93,7 +93,7 @@ class Question extends Entity
      *
      * @return bool
      */
-    public function isTheory()
+    public function isTheory(): bool
     {
         return $this->question_type === 'theory';
     }
@@ -103,7 +103,7 @@ class Question extends Entity
      *
      * @return \App\Model\Entity\QuestionOption|null
      */
-    public function getCorrectOption()
+    public function getCorrectOption(): ?QuestionOption
     {
         if (!$this->isMultipleChoice() || empty($this->question_options)) {
             return null;
@@ -121,16 +121,16 @@ class Question extends Entity
     /**
      * Get options ordered by order_number
      *
-     * @return \App\Model\Entity\QuestionOption[]
+     * @return array<\App\Model\Entity\QuestionOption>
      */
-    public function getOrderedOptions()
+    public function getOrderedOptions(): array
     {
         if (empty($this->question_options)) {
             return [];
         }
 
         $options = $this->question_options;
-        usort($options, function($a, $b) {
+        usort($options, function ($a, $b) {
             return $a->order_number <=> $b->order_number;
         });
 

@@ -124,9 +124,11 @@ class PortalController extends AppController
         $students = [];
         if ($ids !== []) {
             $byId = [];
-            foreach ($this->tenant()->query('EmsStudents')
+            foreach (
+                $this->tenant()->query('EmsStudents')
                 ->where(['id IN' => $ids])
-                ->all() as $s) {
+                ->all() as $s
+            ) {
                 $byId[(string)$s->id] = $s;
             }
             foreach ($ids as $sid) {
@@ -139,7 +141,7 @@ class PortalController extends AppController
         return $this->json([
             'term' => $this->dashboardEngine()->currentTerm(),
             'announcements' => $this->latestAnnouncements(),
-            'wards' => array_map(fn ($s) => $this->wardData($s), $students),
+            'wards' => array_map(fn($s) => $this->wardData($s), $students),
         ]);
     }
 
@@ -225,7 +227,7 @@ class PortalController extends AppController
         $exams = $this->tenant()->query('EmsExams')
             ->where(['status' => 'published'])
             ->all()->toList();
-        usort($exams, fn ($a, $b) => strcmp((string)$b->end_date, (string)$a->end_date));
+        usort($exams, fn($a, $b) => strcmp((string)$b->end_date, (string)$a->end_date));
         $latestResult = null;
         foreach ($exams as $exam) {
             $rows = $this->tenant()->query('EmsExamGrades')
@@ -258,15 +260,16 @@ class PortalController extends AppController
         // Upcoming sittings at the ward's level, soonest first.
         $level = trim(substr((string)$student->class_group, 0, -1));
         $titleById = [];
-        foreach ($this->tenant()->query('EmsExams')
-            ->all() as $e) {
+        foreach (
+            $this->tenant()->query('EmsExams')
+            ->all() as $e
+        ) {
             $titleById[(string)$e->id] = (string)$e->title;
         }
         $schedules = $this->tenant()->query('EmsExamSchedules')
             ->where(['level' => $level, 'date >=' => $today])
             ->all()->toList();
-        usort($schedules, fn ($a, $b) =>
-            strcmp((string)$a->date, (string)$b->date) ?: strcmp((string)$a->start_time, (string)$b->start_time));
+        usort($schedules, fn($a, $b) => strcmp((string)$a->date, (string)$b->date) ?: strcmp((string)$a->start_time, (string)$b->start_time));
         $upcomingSittings = [];
         foreach (array_slice($schedules, 0, 5) as $s) {
             $upcomingSittings[] = ExamSerializer::schedule($s)
@@ -322,9 +325,11 @@ class PortalController extends AppController
     {
         $audience = $this->comms()->feedAudienceForRole($this->viewer->role);
         $rows = [];
-        foreach ($this->tenant()->query('EmsAnnouncements')
+        foreach (
+            $this->tenant()->query('EmsAnnouncements')
             ->where(['status' => 'published'])
-            ->all() as $a) {
+            ->all() as $a
+        ) {
             if ($audience === 'all' || (string)$a->audience === 'everyone' || (string)$a->audience === $audience) {
                 $rows[] = $a;
             }
@@ -336,7 +341,7 @@ class PortalController extends AppController
 
             return strcmp(
                 Wire::date($b->published_on) ?? '',
-                Wire::date($a->published_on) ?? ''
+                Wire::date($a->published_on) ?? '',
             );
         });
 

@@ -4,11 +4,8 @@ declare(strict_types=1);
 namespace App\Controller\Ems;
 
 use App\Ems\Messages;
-use App\Ems\Money;
-use App\Ems\Serializer\FeeSerializer;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
-use Cake\I18n\FrozenDate;
 
 /**
  * Payments — reversals, receipts and the provider confirmation seam
@@ -30,8 +27,23 @@ class PaymentsController extends AppController
 
     public function requestAdjustment(string $id): Response
     {
-        $payment=$this->findPayment($id,Messages::PAYMENT_NOT_FOUND);$body=$this->body();$key=trim((string)$this->request->getHeaderLine('Idempotency-Key'));$request=$body+['paymentId'=>$id];$replay=$this->financeSecurity()->replay($this->viewer,'adjustment.request',$key,$request);if($replay)return$this->json($replay['body'],$replay['status']);
-        $table=$this->fetchTable('EmsFinanceAdjustmentRequests');$result=$table->getConnection()->transactional(function()use($payment,$body,$key,$request){$result=$this->financeSecurity()->requestAdjustment($payment,$this->viewer,$body);$this->financeSecurity()->remember($this->viewer,'adjustment.request',$key,$request,201,$result);return$result;});return$this->json($result,201);
+        $payment = $this->findPayment($id, Messages::PAYMENT_NOT_FOUND);
+        $body = $this->body();
+        $key = trim((string)$this->request->getHeaderLine('Idempotency-Key'));
+        $request = $body + ['paymentId' => $id];
+        $replay = $this->financeSecurity()->replay($this->viewer, 'adjustment.request', $key, $request);
+        if ($replay) {
+            return $this->json($replay['body'], $replay['status']);
+        }
+        $table = $this->fetchTable('EmsFinanceAdjustmentRequests');
+        $result = $table->getConnection()->transactional(function () use ($payment, $body, $key, $request) {
+            $result = $this->financeSecurity()->requestAdjustment($payment, $this->viewer, $body);
+            $this->financeSecurity()->remember($this->viewer, 'adjustment.request', $key, $request, 201, $result);
+
+            return $result;
+        });
+
+        return $this->json($result, 201);
     }
 
     /**

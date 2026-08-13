@@ -16,7 +16,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\StudentsTable&\Cake\ORM\Association\HasMany $Students
  * @property \App\Model\Table\ResultsTable&\Cake\ORM\Association\HasMany $Results
  * @property \App\Model\Table\AttendancesTable&\Cake\ORM\Association\HasMany $Attendances
- *
  * @method \App\Model\Entity\ClassArm newEmptyEntity()
  * @method \App\Model\Entity\ClassArm newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\ClassArm[] newEntities(array $data, array $options = [])
@@ -133,7 +132,7 @@ class ClassArmsTable extends Table
      * @param int $departmentId
      * @return \Cake\ORM\Query
      */
-    public function getArmsForDepartment($departmentId)
+    public function getArmsForDepartment(int $departmentId): Query
     {
         return $this->find()
             ->where(['department_id' => $departmentId, 'status' => 'active'])
@@ -147,7 +146,7 @@ class ClassArmsTable extends Table
      * @param int $armId
      * @return \Cake\ORM\Query
      */
-    public function getArmWithStudentCount($armId)
+    public function getArmWithStudentCount(int $armId): Query
     {
         return $this->find()
             ->where(['id' => $armId])
@@ -156,7 +155,7 @@ class ClassArmsTable extends Table
                 'Teachers.Users',
                 'Students' => function ($q) {
                     return $q->where(['Students.status' => 'Admitted']);
-                }
+                },
             ]);
     }
 }

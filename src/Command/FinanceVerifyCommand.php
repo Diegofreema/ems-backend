@@ -133,7 +133,7 @@ final class FinanceVerifyCommand extends Command
     {
         $rows = $db->execute(
             'SELECT * FROM ems_finance_ledger_events WHERE school_id=?',
-            [$school]
+            [$school],
         )->fetchAll('assoc');
         try {
             $rows = FinanceChain::order($rows);
@@ -184,7 +184,7 @@ final class FinanceVerifyCommand extends Command
             . 'FROM ems_invoices i LEFT JOIN ems_finance_ledger_events l '
             . 'ON l.school_id=i.school_id AND l.invoice_id=i.id '
             . 'WHERE i.school_id=? GROUP BY i.id,i.total',
-            [$school]
+            [$school],
         )->fetchAll('assoc');
         foreach ($rows as $row) {
             if ((int)$row['paid'] < 0 || (int)$row['paid'] > (int)$row['total']) {
@@ -198,7 +198,7 @@ final class FinanceVerifyCommand extends Command
             . "AND l.payment_id=p.id AND l.event_type='payment' "
             . 'WHERE p.school_id=? AND (r.id IS NULL OR l.id IS NULL '
             . 'OR r.amount<>p.amount OR l.amount<>p.amount) LIMIT 1',
-            [$school]
+            [$school],
         )->fetch('assoc');
 
         return $bad ? 'Payment, receipt, and ledger relationship mismatch at ' . $bad['id'] : null;
@@ -217,7 +217,7 @@ final class FinanceVerifyCommand extends Command
         $rows = $db->execute(
             'SELECT * FROM ems_audit_events WHERE school_id=? '
             . 'AND event_hash IS NOT NULL ORDER BY seq',
-            [$school]
+            [$school],
         )->fetchAll('assoc');
         $previous = FinanceChain::GENESIS_HASH;
         foreach ($rows as $row) {
@@ -269,13 +269,13 @@ final class FinanceVerifyCommand extends Command
         $lock = $db->execute(
             'SELECT id,reason FROM ems_finance_integrity_locks '
             . 'WHERE school_id=? AND cleared_at IS NULL',
-            [$school]
+            [$school],
         )->fetch('assoc');
         if ($lock) {
             if ((string)$lock['reason'] !== $fault) {
                 $db->execute(
                     'UPDATE ems_finance_integrity_locks SET reason=? WHERE id=?',
-                    [$fault, $lock['id']]
+                    [$fault, $lock['id']],
                 );
             }
 
@@ -317,12 +317,12 @@ final class FinanceVerifyCommand extends Command
         ConnectionInterface $db,
         string $school,
         string $administratorId,
-        ConsoleIo $io
+        ConsoleIo $io,
     ): bool {
         $administrator = $db->execute(
             'SELECT id,name,role,status FROM ems_users WHERE school_id=? AND id=? '
             . "AND role='administrator' AND status='active'",
-            [$school, $administratorId]
+            [$school, $administratorId],
         )->fetch('assoc');
         if (!$administrator) {
             $io->err($school . ': lock clearance requires an active administrator from this school.');
@@ -332,7 +332,7 @@ final class FinanceVerifyCommand extends Command
         $open = $db->execute(
             'SELECT COUNT(*) total FROM ems_finance_integrity_locks '
             . 'WHERE school_id=? AND cleared_at IS NULL',
-            [$school]
+            [$school],
         )->fetch('assoc');
         if ((int)$open['total'] === 0) {
             return true;
@@ -344,13 +344,13 @@ final class FinanceVerifyCommand extends Command
                 $connection->execute(
                     'UPDATE ems_finance_integrity_locks SET cleared_at=?,cleared_by_user_id=? '
                     . 'WHERE school_id=? AND cleared_at IS NULL',
-                    [$now, $administrator['id'], $school]
+                    [$now, $administrator['id'], $school],
                 );
                 $viewer = new Viewer(
                     $school,
                     (string)$administrator['id'],
                     (string)$administrator['role'],
-                    (string)$administrator['name']
+                    (string)$administrator['name'],
                 );
                 $audit = new Audit(TableRegistry::getTableLocator(), 'finance-verify-cli', 'cli');
                 $audit->log(
@@ -359,7 +359,7 @@ final class FinanceVerifyCommand extends Command
                     'school',
                     $school,
                     'The finance lock was cleared after a successful full verification.',
-                    'Administrator approved clearance after successful verification.'
+                    'Administrator approved clearance after successful verification.',
                 );
             });
         } catch (RuntimeException $exception) {

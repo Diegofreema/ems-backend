@@ -12,17 +12,25 @@ namespace App\Ems;
  */
 final class Viewer
 {
-    /** @var string */
-    public $schoolId;
+    /**
+     * @var string
+     */
+    public string $schoolId;
 
-    /** @var string */
-    public $userId;
+    /**
+     * @var string
+     */
+    public string $userId;
 
-    /** @var string One of: administrator|registrar|bursar|teacher|parent|student */
-    public $role;
+    /**
+     * @var string One of: administrator|registrar|bursar|teacher|parent|student
+     */
+    public string $role;
 
-    /** @var string Display name, used as the audit `actor`. */
-    public $name;
+    /**
+     * @var string Display name, used as the audit `actor`.
+     */
+    public string $name;
 
     public function __construct(string $schoolId, string $userId, string $role, string $name)
     {

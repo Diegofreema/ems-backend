@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -15,7 +14,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\DepartmentsTable&\Cake\ORM\Association\BelongsTo $Departments
  * @property \App\Model\Table\LevelsTable&\Cake\ORM\Association\BelongsTo $Levels
  * @property \App\Model\Table\SemestersTable&\Cake\ORM\Association\BelongsTo $Semesters
- *
  * @method \App\Model\Entity\Timetable newEmptyEntity()
  * @method \App\Model\Entity\Timetable newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Timetable[] newEntities(array $data, array $options = [])
@@ -82,7 +80,6 @@ class TimetablesTable extends Table
 //            ->requirePresence('timetable', 'create')
 //            ->notEmptyString('timetable');
 
-       
 
         return $validator;
     }

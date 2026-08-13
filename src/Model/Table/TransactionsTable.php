@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -15,7 +14,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\SessionsTable&\Cake\ORM\Association\BelongsTo $Sessions
  * @property \App\Model\Table\FeesTable&\Cake\ORM\Association\BelongsTo $Fees
  * @property \App\Model\Table\InvoicesTable&\Cake\ORM\Association\BelongsTo $Invoices
- *
  * @method \App\Model\Entity\Transaction newEmptyEntity()
  * @method \App\Model\Entity\Transaction newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Transaction[] newEntities(array $data, array $options = [])

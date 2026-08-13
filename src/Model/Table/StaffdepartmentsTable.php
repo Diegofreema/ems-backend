@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
-use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -12,7 +10,6 @@ use Cake\Validation\Validator;
  * Staffdepartments Model
  *
  * @property \App\Model\Table\TeachersTable&\Cake\ORM\Association\HasMany $Teachers
- *
  * @method \App\Model\Entity\Staffdepartment newEmptyEntity()
  * @method \App\Model\Entity\Staffdepartment newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Staffdepartment[] newEntities(array $data, array $options = [])
@@ -46,7 +43,7 @@ class StaffdepartmentsTable extends Table
         $this->hasMany('Teachers', [
             'foreignKey' => 'staffdepartment_id',
         ]);
-        
+
         $this->hasMany('Employees', [
             'foreignKey' => 'staffdepartment_id',
         ]);

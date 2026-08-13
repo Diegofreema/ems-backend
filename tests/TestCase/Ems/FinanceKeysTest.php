@@ -38,7 +38,7 @@ final class FinanceKeysTest extends TestCase
 
         $this->assertSame(
             ['active-2', '12345678901234567890123456789012'],
-            FinanceKeys::active()
+            FinanceKeys::active(),
         );
         $this->assertSame('retained', FinanceKeys::verificationKeys()['old-1']);
     }
@@ -50,7 +50,7 @@ final class FinanceKeysTest extends TestCase
 
         $this->assertSame(
             ['legacy-active', '12345678901234567890123456789012'],
-            FinanceKeys::active()
+            FinanceKeys::active(),
         );
     }
 

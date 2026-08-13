@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-
 /**
  * EMS audit trail `ems_audit_events` — APPEND-ONLY (document.md §1.6).
  *

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-
 /**
  * EMS contract table `ems_admission_cycles` (Phase 2). Explicit setTable() keeps it distinct
  * from any legacy `tss` table.

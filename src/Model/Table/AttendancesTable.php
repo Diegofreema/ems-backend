@@ -15,7 +15,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\StudentsTable&\Cake\ORM\Association\BelongsTo $Students
  * @property \App\Model\Table\TeachersTable&\Cake\ORM\Association\BelongsTo $Teachers
  * @property \App\Model\Table\DepartmentsTable&\Cake\ORM\Association\BelongsTo $Departments
- *
  * @method \App\Model\Entity\Attendance newEmptyEntity()
  * @method \App\Model\Entity\Attendance newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Attendance[] newEntities(array $data, array $options = [])
@@ -141,10 +140,10 @@ class AttendancesTable extends Table
      * @param int $departmentId
      * @return \Cake\ORM\Query
      */
-    public function getStudentsForAttendance($departmentId)
+    public function getStudentsForAttendance(int $departmentId): Query
     {
         $studentsTable = TableRegistry::getTableLocator()->get('Students');
-        
+
         return $studentsTable->find()
             ->select(['id', 'fname', 'lname', 'regno', 'department_id'])
             ->where(['department_id' => $departmentId, 'status' => 'Admitted'])
@@ -158,13 +157,13 @@ class AttendancesTable extends Table
      * @param string $date
      * @return \Cake\ORM\Query
      */
-    public function getAttendanceForDate($departmentId, $date)
+    public function getAttendanceForDate(int $departmentId, string $date): Query
     {
         return $this->find()
             ->contain(['Students'])
             ->where([
                 'Attendances.department_id' => $departmentId,
-                'Attendances.attendance_date' => $date
+                'Attendances.attendance_date' => $date,
             ])
             ->order(['Students.fname' => 'ASC', 'Students.lname' => 'ASC']);
     }
@@ -177,17 +176,17 @@ class AttendancesTable extends Table
      * @param string $endDate
      * @return array
      */
-    public function getAttendanceStats($departmentId, $startDate, $endDate)
+    public function getAttendanceStats(int $departmentId, string $startDate, string $endDate): array
     {
         $stats = $this->find()
             ->select([
                 'status',
-                'count' => $this->find()->func()->count('*')
+                'count' => $this->find()->func()->count('*'),
             ])
             ->where([
                 'Attendances.department_id' => $departmentId,
                 'Attendances.attendance_date >=' => $startDate,
-                'Attendances.attendance_date <=' => $endDate
+                'Attendances.attendance_date <=' => $endDate,
             ])
             ->group(['status'])
             ->toArray();
@@ -197,7 +196,7 @@ class AttendancesTable extends Table
             'absent' => 0,
             'late' => 0,
             'excused' => 0,
-            'total' => 0
+            'total' => 0,
         ];
 
         foreach ($stats as $stat) {
@@ -215,12 +214,12 @@ class AttendancesTable extends Table
      * @param string $date
      * @return bool
      */
-    public function isAttendanceTaken($departmentId, $date)
+    public function isAttendanceTaken(int $departmentId, string $date): bool
     {
         $count = $this->find()
             ->where([
                 'Attendances.department_id' => $departmentId,
-                'Attendances.attendance_date' => $date
+                'Attendances.attendance_date' => $date,
             ])
             ->count();
 

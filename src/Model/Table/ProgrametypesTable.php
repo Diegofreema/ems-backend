@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
-use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -12,7 +10,6 @@ use Cake\Validation\Validator;
  * Programetypes Model
  *
  * @property \App\Model\Table\StudentsTable&\Cake\ORM\Association\HasMany $Students
- *
  * @method \App\Model\Entity\Programetype newEmptyEntity()
  * @method \App\Model\Entity\Programetype newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Programetype[] newEntities(array $data, array $options = [])

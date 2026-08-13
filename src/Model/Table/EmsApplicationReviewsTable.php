@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Table;
-
 /**
  * EMS append-only decision trail `ems_application_reviews` (§3.6). Rows are
  * never updated or deleted — the review history IS the audit for admissions.

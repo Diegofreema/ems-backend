@@ -3,12 +3,16 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
+use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenTime;
 use Cake\Utility\Text;
 
 final class FeePlanVersionsController extends AppController
 {
+    /**
+     * Creates a fee-plan version for independent approval.
+     */
     public function add(): Response
     {
         if ($this->viewer->role !== 'bursar') {
@@ -28,9 +32,10 @@ final class FeePlanVersionsController extends AppController
             if ($name === '' || $amount <= 0) {
                 $this->fail(422, 'Each fee plan item needs a name and positive amount.');
             }
-            $items[] = ['name' => $name,'amount' => $amount,'kind' => 'charge'];
+            $items[] = ['name' => $name, 'amount' => $amount, 'kind' => 'charge'];
             $total += $amount;
-        }if ($items === []) {
+        }
+        if ($items === []) {
             $this->fail(422, 'Add at least one charge to the fee plan.');
         }
         $table = $this->fetchTable('EmsFeePlanVersions');
@@ -50,16 +55,30 @@ final class FeePlanVersionsController extends AppController
         return $this->json($result, 201);
     }
 
+    /**
+     * Lists fee-plan versions with their independent decision state.
+     */
     public function index(): Response
     {
         $items = [];
         foreach ($this->tenant()->query('EmsFeePlanVersions')->orderByDesc('created')->all() as $r) {
-            $d = $this->tenant()->query('EmsFinanceDecisions')->where(['request_type' => 'fee_plan_version','request_id' => (string)$r->id])->first();
+            $d = $this->tenant()->query('EmsFinanceDecisions')
+                ->where(['request_type' => 'fee_plan_version', 'request_id' => (string)$r->id])
+                ->first();
             $items[] = $this->wire($r, $d ? (string)$d->decision : 'pending');
-        
-}return $this->json(['items' => $items,'total' => count($items),'page' => 1,'pageSize' => count($items)]);
+        }
+
+        return $this->json([
+            'items' => $items,
+            'total' => count($items),
+            'page' => 1,
+            'pageSize' => count($items),
+        ]);
     }
 
+    /**
+     * Records the independent decision for a fee-plan version.
+     */
     public function decide(string $id): Response
     {
         $body = $this->body();
@@ -96,11 +115,24 @@ final class FeePlanVersionsController extends AppController
         return $this->json($result);
     }
 
-    private function wire($r, string $status): array
+    /**
+     * @return array<string, mixed>
+     */
+    private function wire(EntityInterface $r, string $status): array
     {
         $items = is_string($r->items) ? json_decode($r->items, true) : $r->items;
         $schedule = is_string($r->schedule) ? json_decode($r->schedule, true) : $r->schedule;
-        $out = ['id' => (string)$r->id,'sourceStructureId' => (string)$r->source_structure_id,'version' => (int)$r->version,'session' => (string)$r->session,'term' => (string)$r->term,'level' => (string)$r->level,'items' => (array)$items,'total' => (int)$r->total,'status' => $status];
+        $out = [
+            'id' => (string)$r->id,
+            'sourceStructureId' => (string)$r->source_structure_id,
+            'version' => (int)$r->version,
+            'session' => (string)$r->session,
+            'term' => (string)$r->term,
+            'level' => (string)$r->level,
+            'items' => (array)$items,
+            'total' => (int)$r->total,
+            'status' => $status,
+        ];
         if ($schedule) {
             $out['schedule'] = (array)$schedule;
         }

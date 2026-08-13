@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -16,7 +15,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\LevelsTable&\Cake\ORM\Association\BelongsTo $Levels
  * @property \App\Model\Table\UsersTable&\Cake\ORM\Association\BelongsTo $Users
  * @property \App\Model\Table\SubjectsTable&\Cake\ORM\Association\BelongsToMany $Subjects
- *
  * @method \App\Model\Entity\Courseassignment newEmptyEntity()
  * @method \App\Model\Entity\Courseassignment newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Courseassignment[] newEntities(array $data, array $options = [])

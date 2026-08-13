@@ -9,7 +9,6 @@ use App\Ems\Serializer\FeeSerializer;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
-use DateTimeImmutable;
 
 /**
  * Invoices — what one student owes, priced against the awards ledger at issue
@@ -85,15 +84,17 @@ class InvoicesController extends AppController
     {
         $body = $this->body();
         $student = $this->findStudent((string)($body['studentId'] ?? ''));
-        $plan=$this->approvedPlan((string)($body['feePlanVersionId']??''));
-        if(array_key_exists('lineItems',$body))$this->fail(422,'Custom client supplied charge or discount lines are not accepted.');
-        $lineItems=is_string($plan->items)?json_decode($plan->items,true):(array)$plan->items;
+        $plan = $this->approvedPlan((string)($body['feePlanVersionId'] ?? ''));
+        if (array_key_exists('lineItems', $body)) {
+            $this->fail(422, 'Custom client supplied charge or discount lines are not accepted.');
+        }
+        $lineItems = is_string($plan->items) ? json_decode($plan->items, true) : (array)$plan->items;
 
         return $this->json($this->feesEngine()->priceInvoice(
             $student,
             (string)$plan->session,
             (string)$plan->term,
-            $lineItems
+            $lineItems,
         ));
     }
 
@@ -103,20 +104,28 @@ class InvoicesController extends AppController
     public function add(): Response
     {
         $body = $this->body();
-        if($this->viewer->role!=='bursar')$this->fail(403,'Only a bursar can issue an invoice from an approved fee plan.');
-        $key=trim((string)$this->request->getHeaderLine('Idempotency-Key'));
-        $replay=$this->financeSecurity()->replay($this->viewer,'invoice.issue',$key,$body);
-        if($replay!==null)return$this->json($replay['body'],$replay['status']);
+        if ($this->viewer->role !== 'bursar') {
+            $this->fail(403, 'Only a bursar can issue an invoice from an approved fee plan.');
+        }
+        $key = trim((string)$this->request->getHeaderLine('Idempotency-Key'));
+        $replay = $this->financeSecurity()->replay($this->viewer, 'invoice.issue', $key, $body);
+        if ($replay !== null) {
+            return $this->json($replay['body'], $replay['status']);
+        }
         $student = $this->findStudent((string)($body['studentId'] ?? ''));
-        $plan=$this->approvedPlan((string)($body['feePlanVersionId']??''));
-        if(array_key_exists('lineItems',$body))$this->fail(422,'Custom client supplied charge or discount lines are not accepted.');
-        $session=(string)$plan->session;$term=(string)$plan->term;$lineItems=is_string($plan->items)?json_decode($plan->items,true):(array)$plan->items;
+        $plan = $this->approvedPlan((string)($body['feePlanVersionId'] ?? ''));
+        if (array_key_exists('lineItems', $body)) {
+            $this->fail(422, 'Custom client supplied charge or discount lines are not accepted.');
+        }
+        $session = (string)$plan->session;
+        $term = (string)$plan->term;
+        $lineItems = is_string($plan->items) ? json_decode($plan->items, true) : (array)$plan->items;
 
         $fees = $this->feesEngine();
         $priced = $fees->priceInvoice($student, $session, $term, $lineItems);
         $instalments = $fees->buildInstalments(
             is_array($body['instalments'] ?? null) ? $body['instalments'] : [],
-            (int)$priced['total']
+            (int)$priced['total'],
         );
 
         $code = Money::termCode($session, $term);
@@ -142,11 +151,15 @@ class InvoicesController extends AppController
             'instalments' => $instalments !== [] ? $instalments : null,
         ], ['validate' => false]);
 
-        $result=$invoices->getConnection()->transactional(function()use($invoices,$invoice,$body,$key){
-            $saved=$invoices->saveOrFail($invoice);$wire=FeeSerializer::invoice($saved);
-            $this->audit()->log($this->viewer,'invoice.issued','invoice',(string)$saved->id,'An immutable student invoice was issued from an approved fee plan.');
-            $this->financeSecurity()->remember($this->viewer,'invoice.issue',$key,$body,201,$wire);return$wire;
+        $result = $invoices->getConnection()->transactional(function () use ($invoices, $invoice, $body, $key) {
+            $saved = $invoices->saveOrFail($invoice);
+            $wire = FeeSerializer::invoice($saved);
+            $this->audit()->log($this->viewer, 'invoice.issued', 'invoice', (string)$saved->id, 'An immutable student invoice was issued from an approved fee plan.');
+            $this->financeSecurity()->remember($this->viewer, 'invoice.issue', $key, $body, 201, $wire);
+
+            return $wire;
         });
+
         return $this->json($result, 201);
     }
 
@@ -195,7 +208,7 @@ class InvoicesController extends AppController
         }
         $next = $this->feesEngine()->buildInstalments(
             is_array($body['instalments'] ?? null) ? $body['instalments'] : [],
-            (int)$invoice->total
+            (int)$invoice->total,
         );
         if ($next === []) {
             $this->fail(422, Messages::RESCHEDULE_NEEDS_INSTALMENT);
@@ -241,9 +254,9 @@ class InvoicesController extends AppController
                 $n,
                 $n === 1 ? '' : 's',
                 (string)$next[$n - 1]['dueOn'],
-                $agreedWith
+                $agreedWith,
             ),
-            $reason
+            $reason,
         );
 
         return $this->json(FeeSerializer::invoice($invoice));
@@ -267,7 +280,9 @@ class InvoicesController extends AppController
         $body = $this->body();
         $key = trim((string)$this->request->getHeaderLine('Idempotency-Key'));
         $replay = $this->financeSecurity()->replay($this->viewer, 'payment_submission.create', $key, $body);
-        if ($replay !== null) return $this->json($replay['body'], $replay['status']);
+        if ($replay !== null) {
+            return $this->json($replay['body'], $replay['status']);
+        }
         $submissions = $this->fetchTable('EmsPaymentSubmissions');
         $result = $submissions->getConnection()->transactional(function () use ($id, $body, $key) {
             $invoice = $this->tenant()->query('EmsInvoices')
@@ -282,8 +297,10 @@ class InvoicesController extends AppController
             }
             $result = $this->financeSecurity()->createSubmission($invoice, $this->viewer, $body);
             $this->financeSecurity()->remember($this->viewer, 'payment_submission.create', $key, $body, 201, $result);
+
             return $result;
         });
+
         return $this->json($result, 201);
     }
 
@@ -321,10 +338,15 @@ class InvoicesController extends AppController
 
     private function approvedPlan(string $id): EntityInterface
     {
-        $plan=$this->tenant()->query('EmsFeePlanVersions')->where(['id'=>$id])->first();
-        if(!$plan)$this->fail(422,'Choose an approved fee plan version.');
-        $approved=$this->tenant()->query('EmsFinanceDecisions')->where(['request_type'=>'fee_plan_version','request_id'=>$id,'decision'=>'approved'])->count()>0;
-        if(!$approved)$this->fail(422,'Invoices can only be issued from an approved fee plan version.');
+        $plan = $this->tenant()->query('EmsFeePlanVersions')->where(['id' => $id])->first();
+        if (!$plan) {
+            $this->fail(422, 'Choose an approved fee plan version.');
+        }
+        $approved = $this->tenant()->query('EmsFinanceDecisions')->where(['request_type' => 'fee_plan_version','request_id' => $id,'decision' => 'approved'])->count() > 0;
+        if (!$approved) {
+            $this->fail(422, 'Invoices can only be issued from an approved fee plan version.');
+        }
+
         return $plan;
     }
 

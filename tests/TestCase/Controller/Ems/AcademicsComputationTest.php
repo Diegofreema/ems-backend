@@ -88,10 +88,10 @@ class AcademicsComputationTest extends EmsIntegrationTestCase
         $maths = $this->seedSubject('Mathematics');
 
         // Averages engineered to 80 / 70 / 70 / 40 — two students tie at 70.
-        $s1 = $this->seedStudent('Ade', 'Bola');    // 80, 80 → 80.0
-        $s2 = $this->seedStudent('Bello', 'Chidi');  // 60, 80 → 70.0
-        $s3 = $this->seedStudent('Cole', 'Dayo');    // 70, 70 → 70.0 (ties s2)
-        $s4 = $this->seedStudent('Dele', 'Efe');     // 40, 40 → 40.0
+        $s1 = $this->seedStudent('Ade', 'Bola'); // 80, 80 → 80.0
+        $s2 = $this->seedStudent('Bello', 'Chidi'); // 60, 80 → 70.0
+        $s3 = $this->seedStudent('Cole', 'Dayo'); // 70, 70 → 70.0 (ties s2)
+        $s4 = $this->seedStudent('Dele', 'Efe'); // 40, 40 → 40.0
 
         $this->seedGrade($s1, $english, 30, 50);
         $this->seedGrade($s1, $maths, 30, 50);
@@ -132,8 +132,8 @@ class AcademicsComputationTest extends EmsIntegrationTestCase
         $maths = $this->seedSubject('Mathematics');
         $student = $this->seedStudent('Solo', 'Ada');
 
-        $this->seedGrade($student, $english, 30, 50);  // complete → total 80
-        $this->seedGrade($student, $maths, 30, null);  // exam missing → no total
+        $this->seedGrade($student, $english, 30, 50); // complete → total 80
+        $this->seedGrade($student, $maths, 30, null); // exam missing → no total
 
         $sheet = $this->academics->broadsheet($this->examEntity(), $this->classGroupEntity());
         $row = $sheet['rows'][0];
@@ -158,12 +158,12 @@ class AcademicsComputationTest extends EmsIntegrationTestCase
 
         // Three contributing assessments, 20 marks each.
         $a1 = $this->seedAssessment($english, 'Test 1', 20);
-        $a2 = $this->seedAssessment($english, 'Test 2', 20);
+        $this->seedAssessment($english, 'Test 2', 20);
         $a3 = $this->seedAssessment($english, 'Test 3', 20);
 
-        $this->seedScore($a1, $student, 10);    // scored 10 / 20
+        $this->seedScore($a1, $student, 10); // scored 10 / 20
         // a2: no score row at all → "no mark yet" (missing)
-        $this->seedScore($a3, $student, null);  // explicit absence → excused
+        $this->seedScore($a3, $student, null); // explicit absence → excused
 
         $ca = $this->academics->derivedCa($this->examId, $this->classGroupId, $english, $student, 40);
 
@@ -172,9 +172,9 @@ class AcademicsComputationTest extends EmsIntegrationTestCase
         // would be 10/40 → 10; asserting 20 proves it is EXCLUDED, not zeroed.
         $this->assertSame(20, $ca['ca']);
         $this->assertSame(1, $ca['scoredCount']);
-        $this->assertSame(1, $ca['missingCount']);   // a2 only — the absence isn't "missing"
+        $this->assertSame(1, $ca['missingCount']); // a2 only — the absence isn't "missing"
         $this->assertSame(3, $ca['contributingCount']);
-        $this->assertFalse($ca['complete']);          // a mark is still outstanding
+        $this->assertFalse($ca['complete']); // a mark is still outstanding
     }
 
     public function testDerivedCaIsNullWhenNothingScored(): void

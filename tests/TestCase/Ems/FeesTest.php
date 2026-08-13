@@ -143,7 +143,7 @@ class FeesTest extends EmsDbTestCase
 
         $awards = $this->fees()->activeAwardsFor($student, '2025/2026', 'First');
 
-        $ids = array_map(static fn ($a) => $a['id'], $awards);
+        $ids = array_map(static fn($a) => $a['id'], $awards);
         sort($ids);
         $expected = [$own, $levelTerm];
         sort($expected);

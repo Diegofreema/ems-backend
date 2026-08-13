@@ -212,7 +212,7 @@ class DashboardTest extends EmsIntegrationTestCase
     public function testStudentDashboardSeesOnlyThemself(): void
     {
         $self = $this->seedStudent(['first_name' => 'Solo']);
-        $other = $this->seedStudent(['first_name' => 'Other']);
+        $this->seedStudent(['first_name' => 'Other']);
         $studentUser = Text::uuid();
         $this->seedLinkedUser($studentUser, 'student', ['link_student_id' => $self]);
         $this->authAs('student', $studentUser, 'Solo Student');

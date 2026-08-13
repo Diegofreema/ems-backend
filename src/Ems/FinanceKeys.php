@@ -21,7 +21,7 @@ final class FinanceKeys
         $key = $keys[$id] ?? '';
         if ($id === '' || strlen($key) < 32) {
             throw new RuntimeException(
-                'Finance audit signing is not configured with an active key of at least 32 bytes.'
+                'Finance audit signing is not configured with an active key of at least 32 bytes.',
             );
         }
 

@@ -14,7 +14,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\SetassignmentsTable&\Cake\ORM\Association\BelongsTo $Setassignments
  * @property \App\Model\Table\QuestionOptionsTable&\Cake\ORM\Association\HasMany $QuestionOptions
  * @property \App\Model\Table\StudentAnswersTable&\Cake\ORM\Association\HasMany $StudentAnswers
- *
  * @method \App\Model\Entity\Question newEmptyEntity()
  * @method \App\Model\Entity\Question newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Question[] newEntities(array $data, array $options = [])
@@ -125,7 +124,7 @@ class QuestionsTable extends Table
      * @param array $options The options containing setassignment_id
      * @return \Cake\ORM\Query
      */
-    public function findBySetassignmentId(Query $query, array $options)
+    public function findBySetassignmentId(Query $query, array $options): Query
     {
         return $query->where(['Questions.setassignment_id' => $options['setassignment_id']]);
     }
@@ -137,7 +136,7 @@ class QuestionsTable extends Table
      * @param array $options The options containing question_type
      * @return \Cake\ORM\Query
      */
-    public function findByQuestionType(Query $query, array $options)
+    public function findByQuestionType(Query $query, array $options): Query
     {
         return $query->where(['Questions.question_type' => $options['question_type']]);
     }
@@ -149,7 +148,7 @@ class QuestionsTable extends Table
      * @param array $options The options containing difficulty_level
      * @return \Cake\ORM\Query
      */
-    public function findByDifficultyLevel(Query $query, array $options)
+    public function findByDifficultyLevel(Query $query, array $options): Query
     {
         return $query->where(['Questions.difficulty_level' => $options['difficulty_level']]);
     }

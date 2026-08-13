@@ -34,8 +34,7 @@ class ReportsController extends AppController
                 $jobsTable->saveOrFail($job);
             }
         }
-        usort($rows, fn ($a, $b) =>
-            strcmp((string)$b->requested_on, (string)$a->requested_on)
+        usort($rows, fn($a, $b) => strcmp((string)$b->requested_on, (string)$a->requested_on)
             ?: strcmp((string)$b->created, (string)$a->created));
 
         $total = count($rows);
@@ -45,7 +44,7 @@ class ReportsController extends AppController
             array_map([ReportSerializer::class, 'job'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -110,7 +109,7 @@ class ReportsController extends AppController
             'report.downloaded',
             'report',
             (string)$job->id,
-            sprintf('Downloaded the %s export (%d rows)', strtolower($definition['title']), $rowCount)
+            sprintf('Downloaded the %s export (%d rows)', strtolower($definition['title']), $rowCount),
         );
 
         return $this->json([

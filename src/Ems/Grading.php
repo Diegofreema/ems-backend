@@ -37,14 +37,20 @@ class Grading
         ['letter' => 'F', 'min' => 0, 'label' => 'Fail', 'tone' => 'text-destructive'],
     ];
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
     public function __construct(LocatorInterface $locator, string $schoolId)
     {
@@ -166,15 +172,16 @@ class Grading
                 return sprintf(Messages::GRADING_MIN_RANGE, $letter !== '' ? $letter : '?');
             }
         }
-        for ($i = 1; $i < count($bands); $i++) {
+        $bandCount = count($bands);
+        for ($i = 1; $i < $bandCount; $i++) {
             if ((int)$bands[$i]['min'] >= (int)$bands[$i - 1]['min']) {
                 return Messages::GRADING_DESCENDING;
             }
         }
-        if ((int)$bands[count($bands) - 1]['min'] !== 0) {
+        if ((int)$bands[$bandCount - 1]['min'] !== 0) {
             return Messages::GRADING_LAST_ZERO;
         }
-        $letters = array_map(fn ($b) => strtolower(trim((string)$b['letter'])), $bands);
+        $letters = array_map(fn($b) => strtolower(trim((string)$b['letter'])), $bands);
         if (count(array_unique($letters)) !== count($letters)) {
             return Messages::GRADING_DISTINCT_LETTERS;
         }

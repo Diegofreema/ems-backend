@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -19,7 +18,6 @@ use Cake\Validation\Validator;
  * @property \App\Model\Table\SessionsTable&\Cake\ORM\Association\BelongsTo $Sessions
  * @property \App\Model\Table\UsersTable&\Cake\ORM\Association\BelongsTo $Users
  * @property \App\Model\Table\LevelsTable&\Cake\ORM\Association\BelongsTo $Levels
- *
  * @method \App\Model\Entity\Result newEmptyEntity()
  * @method \App\Model\Entity\Result newEntity(array $data, array $options = [])
  * @method \App\Model\Entity\Result[] newEntities(array $data, array $options = [])

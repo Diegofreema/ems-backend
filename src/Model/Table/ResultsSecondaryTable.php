@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Model\Table;
 
 use Cake\ORM\Table;
@@ -13,9 +15,9 @@ class ResultsSecondaryTable extends Table
 
         $this->belongsTo('Students', ['foreignKey' => 'student_id']);
         $this->belongsTo('Subjects', ['foreignKey' => 'subject_id']);
-        $this->belongsTo('Terms',    ['foreignKey' => 'term_id']);
+        $this->belongsTo('Terms', ['foreignKey' => 'term_id']);
         $this->belongsTo('Sessions', ['foreignKey' => 'session_id']);
-        $this->belongsTo('Classes',  ['foreignKey' => 'class_id']);
+        $this->belongsTo('Classes', ['foreignKey' => 'class_id']);
         $this->belongsTo('Teachers', ['foreignKey' => 'teacher_id']);
     }
 }

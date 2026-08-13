@@ -32,8 +32,7 @@ class PrivacyRequestsController extends AppController
         $params = $this->pageParams();
         $rows = $this->tenant()->query('EmsPrivacyRequests')
             ->all()->toList();
-        usort($rows, fn ($a, $b) =>
-            strcmp((string)$b->requested_on, (string)$a->requested_on)
+        usort($rows, fn($a, $b) => strcmp((string)$b->requested_on, (string)$a->requested_on)
             ?: strcmp((string)$b->reference, (string)$a->reference));
 
         $total = count($rows);
@@ -43,7 +42,7 @@ class PrivacyRequestsController extends AppController
             array_map([GovernanceSerializer::class, 'privacyRequest'], $page),
             $total,
             $params['page'],
-            $params['pageSize']
+            $params['pageSize'],
         );
     }
 
@@ -77,7 +76,7 @@ class PrivacyRequestsController extends AppController
             'privacy_request.logged',
             'privacy_request',
             (string)$request->id,
-            sprintf('Logged a %s request for %s', $label, $subjectName)
+            sprintf('Logged a %s request for %s', $label, $subjectName),
         );
 
         return $this->json(GovernanceSerializer::privacyRequest($request), 201);
@@ -107,7 +106,7 @@ class PrivacyRequestsController extends AppController
             'privacy_request',
             (string)$request->id,
             sprintf('Verified the identity of the requester on %s', (string)$request->reference),
-            $evidence
+            $evidence,
         );
 
         return $this->json(GovernanceSerializer::privacyRequest($request));
@@ -147,7 +146,7 @@ class PrivacyRequestsController extends AppController
             'privacy_request',
             (string)$request->id,
             sprintf('%s %s for %s', $approve ? 'Approved' : 'Refused', (string)$request->reference, (string)$request->subject_name),
-            $note
+            $note,
         );
 
         return $this->json(GovernanceSerializer::privacyRequest($request));
@@ -176,7 +175,7 @@ class PrivacyRequestsController extends AppController
             'privacy_request',
             (string)$request->id,
             sprintf('Fulfilled %s for %s', (string)$request->reference, (string)$request->subject_name),
-            $note
+            $note,
         );
 
         return $this->json(GovernanceSerializer::privacyRequest($request));

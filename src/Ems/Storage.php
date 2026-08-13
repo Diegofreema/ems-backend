@@ -27,8 +27,10 @@ class Storage
     /** @var array<int, string> */
     public const ALLOWED_CONTENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
     public function __construct(LocatorInterface $locator)
     {
@@ -119,7 +121,7 @@ class Storage
         string $documentId,
         string $storagePath,
         string $filename,
-        Viewer $issuedTo
+        Viewer $issuedTo,
     ): array {
         $grants = $this->locator->get('EmsDocumentGrants');
         $issuedAt = $this->nowMs();
@@ -147,7 +149,7 @@ class Storage
      *
      * @return array{grant:\Cake\Datasource\EntityInterface}|array{refused:string}
      */
-    public function redeemGrant(string $token)
+    public function redeemGrant(string $token): array
     {
         $grant = $this->locator->get('EmsDocumentGrants')->find()
             ->where(['token' => $token])->first();
@@ -167,7 +169,7 @@ class Storage
     {
         $this->locator->get('EmsDocumentGrants')->updateAll(
             ['revoked' => true],
-            ['storage_path' => $storagePath]
+            ['storage_path' => $storagePath],
         );
     }
 

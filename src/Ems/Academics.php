@@ -11,6 +11,7 @@ use App\Ems\Serializer\Wire;
 use Cake\Datasource\EntityInterface;
 use Cake\I18n\FrozenDate;
 use Cake\ORM\Locator\LocatorInterface;
+use stdClass;
 
 /**
  * The academics computation engine (document.md §3.1/§3.2/§3.5) — a faithful
@@ -26,14 +27,20 @@ use Cake\ORM\Locator\LocatorInterface;
  */
 class Academics
 {
-    /** @var \Cake\ORM\Locator\LocatorInterface */
-    private $locator;
+    /**
+     * @var \Cake\ORM\Locator\LocatorInterface
+     */
+    private LocatorInterface $locator;
 
-    /** @var string */
-    private $schoolId;
+    /**
+     * @var string
+     */
+    private string $schoolId;
 
-    /** @var \App\Ems\Grading */
-    private $grading;
+    /**
+     * @var \App\Ems\Grading
+     */
+    private Grading $grading;
 
     /** @var array<int, int> Term ordinal for transcript sorting. */
     private const TERM_ORDER = ['First' => 1, 'Second' => 2, 'Third' => 3];
@@ -41,8 +48,10 @@ class Academics
     /** @var array<int, string> Assessment statuses that feed the derived CA. */
     private const CONTRIBUTING = ['open', 'closed', 'published'];
 
-    /** @var \App\Ems\Tenant|null */
-    private $tenantScope;
+    /**
+     * @var \App\Ems\Tenant|null
+     */
+    private ?Tenant $tenantScope = null;
 
     public function __construct(LocatorInterface $locator, string $schoolId, Grading $grading)
     {
@@ -69,7 +78,7 @@ class Academics
     }
 
     /** A decimal-or-null DB value as a float or null. */
-    private static function n($v): ?float
+    private static function n(mixed $v): ?float
     {
         return $v === null ? null : (float)$v;
     }
@@ -86,7 +95,7 @@ class Academics
             }
         }
 
-        return $counted === 0 ? null : self::jsRound(($sum / $counted) * 10) / 10;
+        return $counted === 0 ? null : self::jsRound($sum / $counted * 10) / 10;
     }
 
     /** ca + exam, but only when both are present. */
@@ -156,7 +165,7 @@ class Academics
             $possible += (float)$a->maximum;
             $scoredCount++;
         }
-        $ca = $possible == 0.0 ? null : (int)self::jsRound(($earned / $possible) * $caMax);
+        $ca = $possible == 0.0 ? null : (int)self::jsRound($earned / $possible * $caMax);
 
         return [
             'ca' => $ca,
@@ -188,7 +197,7 @@ class Academics
                     ])
                     ->first();
             },
-            $caMax
+            $caMax,
         );
     }
 
@@ -262,7 +271,7 @@ class Academics
                 function (string $assessmentId) use ($ctx, $studentId) {
                     return $ctx['scores'][$assessmentId . '::' . $studentId] ?? null;
                 },
-                (int)$exam->ca_max
+                (int)$exam->ca_max,
             );
 
             return ['ca' => $d['ca'] === null ? null : (float)$d['ca'], 'fromAssessments' => true, 'missing' => $d['missingCount']];
@@ -301,7 +310,7 @@ class Academics
      */
     private function gradesByStudent(string $examId, string $subjectId, array $roster): array
     {
-        $studentIds = array_map(fn ($s) => (string)$s->id, $roster);
+        $studentIds = array_map(fn($s) => (string)$s->id, $roster);
         if ($studentIds === []) {
             return [];
         }
@@ -366,7 +375,7 @@ class Academics
                     $counted++;
                 }
             }
-            $average = $counted === 0 ? null : self::jsRound(($sum / $counted) * 10) / 10;
+            $average = $counted === 0 ? null : self::jsRound($sum / $counted * 10) / 10;
             $rows[] = ['student' => $student, 'totals' => $totals, 'average' => $average, 'position' => null];
         }
 
@@ -377,7 +386,7 @@ class Academics
                 $rankedIdx[] = $i;
             }
         }
-        usort($rankedIdx, fn ($a, $b) => $rows[$b]['average'] <=> $rows[$a]['average']);
+        usort($rankedIdx, fn($a, $b) => $rows[$b]['average'] <=> $rows[$a]['average']);
         $lastAverage = null;
         $lastPosition = 0;
         foreach ($rankedIdx as $index => $i) {
@@ -468,7 +477,7 @@ class Academics
             }
             $rows[] = [
                 'student' => StudentSerializer::one($r['student']),
-                'cells' => $cells === [] ? new \stdClass() : $cells,
+                'cells' => $cells === [] ? new stdClass() : $cells,
                 'average' => Wire::num($r['average']),
                 'position' => $r['position'],
             ];
@@ -523,7 +532,7 @@ class Academics
                     }
                 }
                 if ($counted > 0) {
-                    $classAverages[$subject] = self::jsRound(($sum / $counted) * 10) / 10;
+                    $classAverages[$subject] = self::jsRound($sum / $counted * 10) / 10;
                 }
             }
 
@@ -675,7 +684,7 @@ class Academics
         $scheme = $this->grading->schemeForExam($exam);
         $bands = $scheme['bands'];
 
-        usort($mine, fn ($a, $b) => strcmp((string)$a->subject, (string)$b->subject));
+        usort($mine, fn($a, $b) => strcmp((string)$a->subject, (string)$b->subject));
         $subjects = [];
         $myTotals = [];
         foreach ($mine as $g) {
@@ -710,13 +719,13 @@ class Academics
         foreach ($totalsByStudent as $sid => $totals) {
             $averages[] = ['sid' => (string)$sid, 'avg' => self::averageOfTotals($totals)];
         }
-        $ranked = array_values(array_filter($averages, fn ($a) => $a['avg'] !== null));
-        usort($ranked, fn ($a, $b) => $b['avg'] <=> $a['avg']);
+        $ranked = array_values(array_filter($averages, fn($a) => $a['avg'] !== null));
+        usort($ranked, fn($a, $b) => $b['avg'] <=> $a['avg']);
         $position = null;
         $lastAvg = null;
         $lastPos = 0;
         foreach ($ranked as $index => $row) {
-            $pos = ($lastAvg !== null && $row['avg'] === $lastAvg) ? $lastPos : $index + 1;
+            $pos = $lastAvg !== null && $row['avg'] === $lastAvg ? $lastPos : $index + 1;
             $lastPos = $pos;
             $lastAvg = $row['avg'];
             if ($row['sid'] === $studentId) {
@@ -826,8 +835,8 @@ class Academics
 
         $sessions = [];
         foreach ($sessionNames as $session) {
-            $sessionTerms = array_values(array_filter($terms, fn ($t) => $t['session'] === $session));
-            usort($sessionTerms, fn ($a, $b) => (self::TERM_ORDER[$a['term']] ?? 9) <=> (self::TERM_ORDER[$b['term']] ?? 9));
+            $sessionTerms = array_values(array_filter($terms, fn($t) => $t['session'] === $session));
+            usort($sessionTerms, fn($a, $b) => (self::TERM_ORDER[$a['term']] ?? 9) <=> (self::TERM_ORDER[$b['term']] ?? 9));
             $placement = null;
             foreach ($enrolments as $e) {
                 if ((string)$e->session === $session) {
@@ -842,7 +851,7 @@ class Academics
                 'session' => $session,
                 'classGroup' => $classGroup,
                 'terms' => $sessionTerms,
-                'average' => Wire::num(self::averageOfTotals(array_map(fn ($t) => $t['average'], $sessionTerms))),
+                'average' => Wire::num(self::averageOfTotals(array_map(fn($t) => $t['average'], $sessionTerms))),
             ];
         }
 
@@ -854,7 +863,7 @@ class Academics
         }
         $cumulativeAverage = $countedAverages === []
             ? null
-            : self::jsRound((array_sum($countedAverages) / count($countedAverages)) * 10) / 10;
+            : self::jsRound(array_sum($countedAverages) / count($countedAverages) * 10) / 10;
 
         return [
             'school' => SettingsSerializer::school($school),
