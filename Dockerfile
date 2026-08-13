@@ -41,6 +41,11 @@ RUN sed -ri \
     && chown -R www-data:www-data tmp logs \
     && chmod -R 775 tmp logs
 
+# The public admission form has three 2 MB file slots. Browsers send them as
+# base64 data URLs, so reserve a small envelope above their 8 MB payload.
+RUN printf '%s\\n' 'LimitRequestBody 9437184' > /etc/apache2/conf-available/ems-request-limits.conf \
+    && a2enconf ems-request-limits
+
 EXPOSE 10000
 
 CMD ["sh", "bin/docker-entrypoint.sh"]

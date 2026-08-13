@@ -42,3 +42,6 @@ nbproject/*
 # Sass preprocessor
 .sass-cache/
 ca.pem
+
+# Database exports can contain production records and password hashes.
+/db/*.sql

@@ -84,9 +84,9 @@ class PublicController extends AppController
         $uploads = is_array($body['documents'] ?? null) ? $body['documents'] : [];
         // Validate every file up front — nothing is written if one is bad.
         foreach ($uploads as $upload) {
-            $this->storage()->assertAcceptable(
+            $this->storage()->assertAcceptableUpload(
                 (string)($upload['contentType'] ?? ''),
-                (int)($upload['sizeBytes'] ?? 0),
+                (string)($upload['body'] ?? ''),
             );
             if (trim((string)($upload['name'] ?? '')) === '') {
                 $this->fail(422, Messages::DOCUMENT_NAME_REQUIRED);

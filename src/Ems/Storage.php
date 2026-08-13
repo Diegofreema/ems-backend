@@ -54,6 +54,20 @@ class Storage
         }
     }
 
+    /**
+     * Validate an upload using the bytes supplied, never browser metadata.
+     *
+     * The EMS browser sends data URLs. Count their decoded payload so the
+     * 2 MB contract applies to the file, not its base64 wrapper.
+     */
+    public function assertAcceptableUpload(string $contentType, string $body): int
+    {
+        $sizeBytes = $this->uploadBodySize($body);
+        $this->assertAcceptable($contentType, $sizeBytes);
+
+        return $sizeBytes;
+    }
+
     /** Private bucket layout: school_id/entity/entity_id/file_id. */
     public function storagePathFor(string $schoolId, string $entity, string $entityId, string $fileId): string
     {
@@ -194,6 +208,31 @@ class Storage
             default:
                 return 'txt';
         }
+    }
+
+    private function uploadBodySize(string $body): int
+    {
+        if (!str_starts_with($body, 'data:')) {
+            return strlen($body);
+        }
+
+        $separator = strpos($body, ',');
+        if ($separator === false) {
+            return strlen($body);
+        }
+
+        $header = substr($body, 0, $separator);
+        $payload = substr($body, $separator + 1);
+        $isBase64 = str_ends_with(strtolower($header), ';base64');
+        $validBase64 = strlen($payload) % 4 === 0
+            && preg_match('/\\A[A-Za-z0-9+\\/]*={0,2}\\z/D', $payload) === 1;
+        if (!$isBase64 || !$validBase64) {
+            return strlen($body);
+        }
+
+        $padding = str_ends_with($payload, '==') ? 2 : (str_ends_with($payload, '=') ? 1 : 0);
+
+        return intdiv(strlen($payload), 4) * 3 - $padding;
     }
 
     private function nowMs(): int

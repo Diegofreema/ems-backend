@@ -41,8 +41,8 @@ class DocumentWriter
     public function store(string $schoolId, string $owner, string $ownerId, array $upload, string $uploader): EntityInterface
     {
         $contentType = (string)($upload['contentType'] ?? '');
-        $sizeBytes = (int)($upload['sizeBytes'] ?? 0);
-        $this->storage->assertAcceptable($contentType, $sizeBytes);
+        $body = (string)($upload['body'] ?? '');
+        $sizeBytes = $this->storage->assertAcceptableUpload($contentType, $body);
 
         $name = trim((string)($upload['name'] ?? ''));
         if ($name === '') {
@@ -52,7 +52,7 @@ class DocumentWriter
         $documents = $this->locator->get('EmsDocuments');
         $id = Text::uuid();
         $storagePath = $this->storage->storagePathFor($schoolId, $owner, $ownerId, $id);
-        $this->storage->putObject($storagePath, $contentType, $sizeBytes, (string)($upload['body'] ?? ''));
+        $this->storage->putObject($storagePath, $contentType, $sizeBytes, $body);
 
         $document = $documents->newEntity([
             'school_id' => $schoolId,
