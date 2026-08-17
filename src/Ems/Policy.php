@@ -307,6 +307,10 @@ final class Policy
         'Portal.wardOverview' => 'ALL',
         'Portal.notifications' => 'ALL',
         'Portal.markNotificationsRead' => 'ALL',
+        // A linked guardian may declare and review their own offline payments;
+        // Scope::assertStudentAccess narrows each call to the actual ward.
+        'PortalPaymentClaims.index' => 'FINANCE_FAMILY',
+        'PortalPaymentClaims.add' => 'FINANCE_FAMILY',
 
         // --- Audit & privacy requests (§3.23) — administrators only ---
         'Audit.events' => 'ADMIN',

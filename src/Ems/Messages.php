@@ -216,6 +216,9 @@ final class Messages
     // --- Fees: reminders (§3.7) -------------------------------------------
     public const REMINDER_KIND_INVALID = 'Choose an overdue or a due-soon reminder.';
 
+    // --- Fees: family payment declarations (§3.19) ------------------------
+    public const CLAIM_ALREADY_OPEN = 'You already have a payment declaration awaiting review on this invoice.';
+
     // --- Fees: payments & checkout (§3.7) ---------------------------------
     public const PAYMENT_NOT_FOUND = 'That payment could not be found.';
     public const PAYMENT_ALREADY_REVERSED = 'This payment has already been reversed.';

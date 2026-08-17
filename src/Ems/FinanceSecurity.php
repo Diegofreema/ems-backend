@@ -70,9 +70,17 @@ final class FinanceSecurity
         ], ['validate' => false]));
     }
 
-    public function createSubmission(EntityInterface $invoice, Viewer $viewer, array $body): array
+    /**
+     * @param array<string, mixed> $options provenance (default 'offline'),
+     *   allowCash (default true) and oneOpenPerInvoice (default false) tune the
+     *   family front door (parent claims: no cash, one open claim per invoice)
+     *   without touching the bursar path, which passes no options.
+     */
+    public function createSubmission(EntityInterface $invoice, Viewer $viewer, array $body, array $options = []): array
     {
         $this->assertWritable();
+        $provenance = (string)($options['provenance'] ?? 'offline');
+        $allowCash = (bool)($options['allowCash'] ?? true);
         $amount = (int)($body['amount'] ?? 0);
         $method = (string)($body['method'] ?? '');
         $reference = strtoupper(trim((string)($body['reference'] ?? '')));
@@ -80,8 +88,17 @@ final class FinanceSecurity
         $relationship = trim((string)($body['payerRelationship'] ?? ''));
         $receivedOn = (string)($body['receivedOn'] ?? '');
         $cashAck = trim((string)($body['cashAcknowledgement'] ?? ''));
-        if ($amount <= 0 || !in_array($method, ['cash', 'bank_transfer', 'pos', 'cheque'], true)) {
-            throw new HttpException('Enter a valid amount and payment method.', 422);
+        $methods = $allowCash ? ['cash', 'bank_transfer', 'pos', 'cheque'] : ['bank_transfer', 'pos', 'cheque'];
+        if ($amount <= 0 || !in_array($method, $methods, true)) {
+            throw new HttpException(
+                $allowCash
+                    ? 'Enter a valid amount and payment method.'
+                    : 'Enter a valid amount and a transfer, POS or cheque method.',
+                422,
+            );
+        }
+        if (($options['oneOpenPerInvoice'] ?? false) && $this->hasOpenClaim((string)$invoice->id)) {
+            throw new HttpException(Messages::CLAIM_ALREADY_OPEN, 409);
         }
         if ($payerName === '' || $relationship === '') {
             throw new HttpException('Payer name and relationship to the student are required.', 422);
@@ -122,7 +139,7 @@ final class FinanceSecurity
             'cash_acknowledgement' => $cashAck !== '' ? $cashAck : null,
             'statement_row_id' => $body['statementRowId'] ?? null, 'cash_batch_id' => $body['cashBatchId'] ?? null,
             'recorded_by_user_id' => $viewer->userId, 'recorded_by_name' => $viewer->name,
-            'provenance' => 'offline', 'created' => FrozenTime::now('UTC'),
+            'provenance' => $provenance, 'created' => FrozenTime::now('UTC'),
         ], ['validate' => false]);
         $table->saveOrFail($row);
         $this->audit->log($viewer, 'payment_submission.created', 'payment_submission', $id, 'An offline payment claim was recorded and is awaiting independent verification.', null, 'success', null, ['invoiceId' => (string)$invoice->id, 'studentId' => (string)$invoice->student_id, 'amount' => $amount, 'method' => $method]);
@@ -130,7 +147,13 @@ final class FinanceSecurity
         return $this->submissionWire($row, null, $evidence);
     }
 
-    public function decideSubmission(EntityInterface $submission, Viewer $viewer, string $decision, string $reason): array
+    /**
+     * @param string|null $statementRowId the credit statement row the reviewing
+     *   administrator matched a family-declared claim to (parent claims arrive
+     *   without one; the immutable claim can't be edited, so the match rides on
+     *   the decision). Ignored when the claim already carries its own match.
+     */
+    public function decideSubmission(EntityInterface $submission, Viewer $viewer, string $decision, string $reason, ?string $statementRowId = null): array
     {
         $this->assertWritable();
         if ($viewer->role !== 'administrator') {
@@ -145,13 +168,21 @@ final class FinanceSecurity
         if ($this->tenant('EmsFinanceDecisions')->where(['request_type' => 'payment_submission', 'request_id' => (string)$submission->id])->count() > 0) {
             throw new HttpException('This payment submission already has a decision.', 409);
         }
+        // The match belongs on the claim (bursar) or, for a family declaration,
+        // on this decision. Set it on the in-memory entity so reconciliation and
+        // posting see it — never saved, so the immutable claim row is untouched.
+        if ((string)($submission->statement_row_id ?? '') === '' && trim((string)$statementRowId) !== '') {
+            $submission->statement_row_id = trim((string)$statementRowId);
+        }
         if ($decision === 'approved') {
             $this->assertSubmissionReconciled($submission);
         }
         $decisions = $this->locator->get('EmsFinanceDecisions');
         $decisionRow = $decisions->newEntity([
             'id' => Text::uuid(), 'school_id' => $this->schoolId, 'request_type' => 'payment_submission',
-            'request_id' => (string)$submission->id, 'decision' => $decision, 'reason' => trim($reason),
+            'request_id' => (string)$submission->id,
+            'statement_row_id' => (string)($submission->statement_row_id ?? '') !== '' ? (string)$submission->statement_row_id : null,
+            'decision' => $decision, 'reason' => trim($reason),
             'requested_by_user_id' => (string)$submission->recorded_by_user_id,
             'decided_by_user_id' => $viewer->userId, 'decided_by_name' => $viewer->name,
             'decided_at' => FrozenTime::now('UTC'),
@@ -273,7 +304,7 @@ final class FinanceSecurity
 
     public function submissionWire(EntityInterface $row, ?EntityInterface $decision = null, ?array $evidence = null): array
     {
-        $out = ['id' => (string)$row->id,'invoiceId' => (string)$row->invoice_id,'studentId' => (string)$row->student_id,'amount' => (int)$row->amount,'method' => (string)$row->method,'payerName' => (string)$row->payer_name,'payerRelationship' => (string)$row->payer_relationship,'receivedOn' => (string)$row->received_on,'recordedBy' => (string)$row->recorded_by_name,'status' => $decision ? (string)$decision->decision : 'pending'];
+        $out = ['id' => (string)$row->id,'invoiceId' => (string)$row->invoice_id,'studentId' => (string)$row->student_id,'amount' => (int)$row->amount,'method' => (string)$row->method,'payerName' => (string)$row->payer_name,'payerRelationship' => (string)$row->payer_relationship,'receivedOn' => (string)$row->received_on,'recordedBy' => (string)$row->recorded_by_name,'provenance' => (string)$row->provenance,'status' => $decision ? (string)$decision->decision : 'pending'];
         if ($row->normalized_reference) {
             $out['reference'] = (string)$row->normalized_reference;
         }
@@ -357,6 +388,25 @@ final class FinanceSecurity
         $events->saveOrFail($row);
     }
 
+    /**
+     * True while any claim on this invoice is still awaiting a decision — the
+     * family front door allows only one open declaration per invoice, so a
+     * parent can't stack duplicates before a reviewer has looked.
+     */
+    private function hasOpenClaim(string $invoiceId): bool
+    {
+        $ids = $this->tenant('EmsPaymentSubmissions')->select(['id'])
+            ->where(['invoice_id' => $invoiceId])->all()->extract('id')->toList();
+        if ($ids === []) {
+            return false;
+        }
+        $decided = $this->tenant('EmsFinanceDecisions')->select(['request_id'])
+            ->where(['request_type' => 'payment_submission', 'request_id IN' => $ids])
+            ->all()->extract('request_id')->toList();
+
+        return count(array_diff($ids, $decided)) > 0;
+    }
+
     private function assertSubmissionReconciled(EntityInterface $submission): void
     {
         if ((string)$submission->method === 'cash') {
@@ -375,15 +425,22 @@ final class FinanceSecurity
         if (!$row || strtoupper(trim((string)$row->reference)) !== (string)$submission->normalized_reference) {
             throw new HttpException('Match the payment to a credit statement row with the same amount and reference.', 422);
         }
+        // No statement row may verify two payments. The match lives either on the
+        // claim (bursar-entered) or on the approving decision (family declaration),
+        // so guard against both.
         $claims = $this->tenant('EmsPaymentSubmissions')->select(['id'])->where([
             'statement_row_id' => (string)$submission->statement_row_id,
             'id !=' => (string)$submission->id,
         ])->all()->extract('id')->toList();
-        if (
-            $claims !== [] && $this->tenant('EmsFinanceDecisions')->where([
+        $verifiedOnClaim = $claims !== [] && $this->tenant('EmsFinanceDecisions')->where([
             'request_type' => 'payment_submission', 'request_id IN' => $claims, 'decision' => 'approved',
-            ])->count() > 0
-        ) {
+        ])->count() > 0;
+        $verifiedOnDecision = $this->tenant('EmsFinanceDecisions')->where([
+            'request_type' => 'payment_submission', 'decision' => 'approved',
+            'statement_row_id' => (string)$submission->statement_row_id,
+            'request_id !=' => (string)$submission->id,
+        ])->count() > 0;
+        if ($verifiedOnClaim || $verifiedOnDecision) {
             throw new HttpException('This bank statement row has already verified another payment.', 409);
         }
         if ((string)$submission->method === 'cheque' && stripos((string)$row->description, 'cleared') === false) {

@@ -326,6 +326,12 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->get('/portal/dashboard', ['controller' => 'Portal', 'action' => 'dashboard']);
         $s->get('/portal/notifications', ['controller' => 'Portal', 'action' => 'notifications']);
         $s->post('/portal/notifications/read', ['controller' => 'Portal', 'action' => 'markNotificationsRead']);
+        // Family payment declarations — the deeper /payment-claims path before the
+        // bare {studentId} overview.
+        $s->get('/portal/wards/{studentId}/payment-claims', ['controller' => 'PortalPaymentClaims', 'action' => 'index'])
+            ->setPass(['studentId']);
+        $s->post('/portal/wards/{studentId}/payment-claims', ['controller' => 'PortalPaymentClaims', 'action' => 'add'])
+            ->setPass(['studentId']);
         $s->get('/portal/wards/{studentId}', ['controller' => 'Portal', 'action' => 'wardOverview'])
             ->setPass(['studentId']);
 

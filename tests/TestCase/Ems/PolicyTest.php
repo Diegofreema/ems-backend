@@ -45,6 +45,10 @@ class PolicyTest extends TestCase
     private const FAMILY_WRITE_ALLOWLIST = [
         'Communication.setPreference',
         'Portal.markNotificationsRead',
+        // A linked guardian declares their own offline payment (§3.19); it only
+        // files a claim into the queue and Scope::assertStudentAccess pins it to
+        // the ward. Verification and posting stay administrator-only.
+        'PortalPaymentClaims.add',
         'Documents.add',
         'Documents.verify',
         'Documents.link',

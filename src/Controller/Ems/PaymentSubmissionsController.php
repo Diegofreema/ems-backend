@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
+use App\Ems\PaymentClaims;
+use Cake\Core\Configure;
 use Cake\Http\Response;
+use Cake\I18n\FrozenDate;
 
 final class PaymentSubmissionsController extends AppController
 {
@@ -74,8 +77,12 @@ final class PaymentSubmissionsController extends AppController
         if ($replay !== null) {
             return $this->json($replay['body'], $replay['status']);
         }
+        // A family-declared claim (provenance 'parent') is notified of the
+        // outcome after the decision commits — captured here, delivered below so
+        // a slow mail provider never rolls back the decision.
+        $notice = null;
         $table = $this->fetchTable('EmsPaymentSubmissions');
-        $result = $table->getConnection()->transactional(function () use ($id, $body, $key) {
+        $result = $table->getConnection()->transactional(function () use ($id, $body, $key, &$notice) {
             $row = $this->tenant()->query('EmsPaymentSubmissions')
                 ->where(['id' => $id])
                 ->epilog('FOR UPDATE')
@@ -83,11 +90,16 @@ final class PaymentSubmissionsController extends AppController
             if (!$row) {
                 $this->fail(404, 'Payment submission not found.');
             }
+            $decision = (string)($body['decision'] ?? '');
+            $reason = trim((string)($body['reason'] ?? ''));
             $result = $this->financeSecurity()->decideSubmission(
                 $row,
                 $this->viewer,
-                (string)($body['decision'] ?? ''),
-                trim((string)($body['reason'] ?? '')),
+                $decision,
+                $reason,
+                // The reviewer's chosen credit statement row — used only when the
+                // claim carries no match of its own (a family declaration).
+                trim((string)($body['statementRowId'] ?? '')) ?: null,
             );
             $this->financeSecurity()->remember(
                 $this->viewer,
@@ -97,9 +109,27 @@ final class PaymentSubmissionsController extends AppController
                 200,
                 $result,
             );
+            if ((string)$row->provenance === 'parent') {
+                $notice = [
+                    'userId' => (string)$row->recorded_by_user_id,
+                    'studentId' => (string)$row->student_id,
+                    'invoiceId' => (string)$row->invoice_id,
+                    'amount' => (int)$row->amount,
+                    'decision' => $decision,
+                    'reason' => $reason,
+                ];
+            }
 
             return $result;
         });
+
+        if ($notice !== null) {
+            (new PaymentClaims(
+                $this->getTableLocator(),
+                $this->viewer->schoolId,
+                FrozenDate::today()->format('Y-m-d'),
+            ))->notifyDecision($notice, $this->comms(), (string)Configure::read('Ems.frontendBaseUrl', ''));
+        }
 
         return $this->json($result);
     }

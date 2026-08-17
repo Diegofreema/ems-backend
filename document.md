@@ -375,7 +375,7 @@ The scheduled seam: `bin/cake send_fee_reminders [--school ID] [--kind overdue\|
 | `POST /invoices/:id/payment-submissions` | `PaymentInput` | `PaymentSubmission` (201, `pending`) | **Bursar drafts.** Cancelled invoice → 422. amount > 0 and ≤ balance; payer + relationship required; receivedOn strict date, not future; cash → acknowledgement + open batch (duplicate ack in batch → 409); non-cash → reference + evidence (PDF/JPEG/PNG ≤ 10 MB, magic-bytes checked, ClamAV-scanned fail-closed). Audit `payment_submission.created`. |
 | `GET /payment-submissions` | — | `{ items: PaymentSubmission[], … }` | Newest first with decision + evidence metadata. |
 | `GET /payment-submissions/:id/evidence` | — | file stream | 423 while `scanStatus` ≠ `clean`. `Content-Disposition: inline`, `Cache-Control: private, no-store`. |
-| `POST /payment-submissions/:id/decision` | `{ decision, reason }` | `{ submission, payment \| null }` | Admin decides; recorder refused. Approval requires reconciliation: cash → its batch closed; non-cash → clean evidence + a `credit` statement row with identical amount AND reference, not already used by another approval (409), cheques additionally "cleared" in the row description. Then posts the payment (`completed`, channel `office`), appends the `payment` ledger event, writes the immutable receipt (overpay → 409), and drops an in-app "Payment verified" notification. Audit `payment_submission.approved`/`.rejected`. |
+| `POST /payment-submissions/:id/decision` | `{ decision, reason, statementRowId? }` | `{ submission, payment \| null }` | Admin decides; recorder refused. Approval requires reconciliation: cash → its batch closed; non-cash → clean evidence + a `credit` statement row with identical amount AND reference, not already used by another approval (409), cheques additionally "cleared" in the row description. A **family-declared claim** (provenance `parent`) carries no match — the reviewer supplies `statementRowId` here; because the claim row is immutable, the match is recorded on the decision (and guarded against reuse there too). Then posts the payment (`completed`, channel `office`), appends the `payment` ledger event, writes the immutable receipt (overpay → 409), and drops an in-app "Payment verified" notification. **Parent-origin claims** additionally notify the declaring guardian of the outcome (portal bell + e-mail, approve or reject-with-reason). Audit `payment_submission.approved`/`.rejected`. |
 
 **Adjustments (reversals & refunds)**
 
@@ -975,16 +975,35 @@ type WardOverview = {
 | `GET /portal/wards/:studentId` | — | `WardOverview` | Student access (403 family message). Attendance window = the last 20 distinct register dates school-wide; rate counts present+late. Fees derive from the same net-paid rule as §3.7 (completed − processed refunds). Latest result = most recent published exam with fully-marked rows for the ward. |
 | `GET /portal/notifications` | — | `{ items: PortalNotification[]; unread: number }` | The signed-in account's in-app inbox: latest 50 rows, newest first, plus the TOTAL unread count. Accounts with no rows (all staff roles today) get `{ items: [], unread: 0 }`. |
 | `POST /portal/notifications/read` | — | `void` (204) | Opening the panel marks ALL of the account's unread rows read (`readAt` stamped). |
+| `GET /portal/wards/:studentId/payment-claims` | — | `{ items: PaymentClaim[]; total }` | Student access (403 family message). This ward's own declarations (provenance `parent`), newest first, with decision status — never evidence bytes or the reviewer's identity. |
+| `POST /portal/wards/:studentId/payment-claims` | `PaymentClaimInput` | `PaymentSubmission` (201, `pending`) | **A linked guardian declares an offline payment they have made** (§3.7). Student access; the invoice must belong to the ward and not be cancelled. Methods `bank_transfer`/`pos`/`cheque` only — **no cash** (needs a bursary batch) → 422; reference + evidence required (same PDF/JPEG/PNG ≤ 10 MB, magic-bytes + ClamAV gate); amount > 0 and ≤ balance → 422; **one open declaration per invoice** → 409 (a rejection reopens it). Enters the SAME queue as a bursar claim, stamped provenance `parent`; the payer identity is the signed-in guardian, never the body. `Idempotency-Key` required. Audit `payment_submission.created`. |
 
 ```ts
 type PortalNotification = {
   id: string
-  kind: 'absence_alert'             // extensible — new kinds are additive
+  kind: 'absence_alert' | 'fee_reminder' | 'payment_claim'   // extensible — new kinds are additive
   title: string; body: string       // plain text; never includes register notes
   studentId: string | null          // the ward the row is about
   date: string | null               // the register date (YYYY-MM-DD)
   readAt: string | null             // ISO datetime; null until marked read
   createdOn: string | null          // ISO datetime
+}
+
+type PaymentClaimInput = {
+  invoiceId: string
+  method: 'bank_transfer' | 'pos' | 'cheque'   // no cash from the portal
+  amount: number                     // minor units, ≤ invoice balance
+  reference: string                  // uppercased server-side; matched to a statement row at approval
+  receivedOn: string                 // YYYY-MM-DD, not future
+  evidence: { filename: string; mediaType: string; base64: string }
+}
+
+type PaymentClaim = {                 // the family-safe view of a declaration
+  id: string; invoiceId: string; invoiceNumber?: string
+  amount: number; method: string; reference: string | null
+  receivedOn: string; submittedOn: string
+  status: 'pending' | 'approved' | 'rejected'
+  decision?: { reason: string; decidedOn: string }
 }
 ```
 
