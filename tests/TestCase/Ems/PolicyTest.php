@@ -36,12 +36,15 @@ class PolicyTest extends TestCase
 
     /**
      * The only writes a family role (parent/student) may reach at the capability
-     * layer: their own contact preferences, and the Documents surface — whose
-     * own-record reach is enforced in-action by DocumentPolicy, so Policy stays
-     * ALL there and lets DocPol be authoritative.
+     * layer: their own contact preferences, their own notification inbox
+     * (mark-read touches only rows where user_id is the viewer), and the
+     * Documents surface — whose own-record reach is enforced in-action by
+     * DocumentPolicy, so Policy stays ALL there and lets DocPol be
+     * authoritative.
      */
     private const FAMILY_WRITE_ALLOWLIST = [
         'Communication.setPreference',
+        'Portal.markNotificationsRead',
         'Documents.add',
         'Documents.verify',
         'Documents.link',

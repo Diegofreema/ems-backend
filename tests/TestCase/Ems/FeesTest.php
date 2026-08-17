@@ -255,35 +255,54 @@ class FeesTest extends EmsDbTestCase
 
     // --- reconciliation -----------------------------------------------------
 
-    public function testReconciliationBucketsPaymentsAndKeepsCompletedGross(): void
+    public function testReconciliationReportsLedgerCorrectionsAndOpenQueues(): void
     {
         $sid = Text::uuid();
         $inv = $this->seedInvoice($this->schoolId, ['student_id' => $sid, 'student_name' => 'Ada Pupil', 'invoice_number' => 'INV-001']);
         $p1 = $this->seedPayment($this->schoolId, $inv, $sid, ['amount' => 60000, 'state' => 'completed', 'receipt_number' => 'RCP-001']);
         $this->seedPayment($this->schoolId, $inv, $sid, ['amount' => 40000, 'state' => 'completed']);
-        $this->seedPayment($this->schoolId, $inv, $sid, ['amount' => 25000, 'state' => 'pending']);
-        $this->seedPayment($this->schoolId, $inv, $sid, ['amount' => 15000, 'state' => 'failed', 'failed_on' => '2025-09-16']);
         $this->seedPayment($this->schoolId, $inv, $sid, ['amount' => 10000, 'state' => 'reversed']);
         $this->seedRefund($this->schoolId, $p1, $inv, $sid, ['amount' => 20000, 'status' => 'processed']);
-        $this->seedRefund($this->schoolId, $p1, $inv, $sid, ['amount' => 5000, 'status' => 'pending']);
+
+        // One undecided adjustment, one approved refund awaiting payout, and
+        // one rejected request that must appear in neither queue.
+        $bursar = $this->seedUser($this->schoolId, 'bursar');
+        $admin = $this->seedUser($this->schoolId, 'administrator');
+        $pendingAdj = $this->seedAdjustmentRequest($this->schoolId, $p1, $inv, $sid, $bursar, ['kind' => 'refund', 'amount' => 5000]);
+        $awaiting = $this->seedAdjustmentRequest($this->schoolId, $p1, $inv, $sid, $bursar, ['kind' => 'refund', 'amount' => 7000]);
+        $this->seedFinanceDecision($this->schoolId, 'adjustment', $awaiting, $bursar, $admin, 'approved');
+        $rejected = $this->seedAdjustmentRequest($this->schoolId, $p1, $inv, $sid, $bursar, ['kind' => 'reversal', 'amount' => 1000]);
+        $this->seedFinanceDecision($this->schoolId, 'adjustment', $rejected, $bursar, $admin, 'rejected');
+
+        // An undecided offline claim keeps the submissions queue honest.
+        $this->db->insert('ems_payment_submissions', [
+            'id' => Text::uuid(), 'school_id' => $this->schoolId, 'invoice_id' => $inv, 'student_id' => $sid,
+            'amount' => 5000, 'method' => 'cash', 'payer_name' => 'Ada Parent', 'payer_relationship' => 'Mother',
+            'received_on' => '2025-09-15', 'cash_acknowledgement' => 'ACK-1',
+            'recorded_by_user_id' => $bursar, 'recorded_by_name' => 'Bursar', 'created' => '2025-09-15 09:00:00',
+        ]);
 
         $recon = $this->fees()->reconciliation();
 
         $this->assertSame(2, $recon['completedCount']);
         $this->assertSame(100000, $recon['completedAmount'], 'completed total is GROSS, not net of refunds');
-        $this->assertSame(25000, $recon['pendingAmount']);
         $this->assertSame(1, $recon['reversedCount']);
-        $this->assertSame(20000, $recon['refundedAmount']);
+        $this->assertSame(10000, $recon['reversedAmount'], 'reversal totals come from the ledger, as positives');
         $this->assertSame(1, $recon['refundedCount']);
-        $this->assertCount(1, $recon['pending']);
-        $this->assertCount(1, $recon['failed']);
+        $this->assertSame(20000, $recon['refundedAmount']);
+        $this->assertSame(1, $recon['submissionsPending']);
 
-        $this->assertCount(1, $recon['refundsPending']);
-        $row = $recon['refundsPending'][0];
+        $this->assertCount(1, $recon['adjustmentsPending']);
+        $row = $recon['adjustmentsPending'][0];
+        $this->assertSame($pendingAdj, $row['id']);
         $this->assertSame('Ada Pupil', $row['studentName']);
         $this->assertSame('INV-001', $row['invoiceNumber']);
         $this->assertSame('RCP-001', $row['receiptNumber']);
         $this->assertSame(60000, $row['paymentAmount']);
+
+        $this->assertCount(1, $recon['payoutsPending']);
+        $this->assertSame($awaiting, $recon['payoutsPending'][0]['id']);
+        $this->assertSame('awaiting_payout', $recon['payoutsPending'][0]['status']);
     }
 
     // --- report -------------------------------------------------------------

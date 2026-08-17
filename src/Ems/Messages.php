@@ -202,6 +202,20 @@ final class Messages
     // %1$s = the instalments' sum (formatted), %2$s = the invoice total (formatted).
     public const INSTALMENT_SUM_MISMATCH = 'The instalments add up to %1$s, but this invoice comes to %2$s once scholarships and discounts are applied.';
 
+    // --- Fees: bulk invoicing (§3.7) --------------------------------------
+    public const INVOICE_DUPLICATE_PLAN = 'This student already has an invoice from this fee plan version.';
+    public const BATCH_NOT_FOUND = 'That invoice batch could not be found.';
+    public const BATCH_NO_CLASS_GROUPS = 'Choose at least one class to invoice.';
+    public const BATCH_NO_STUDENTS = 'No enrolled students match the chosen classes.';
+    public const BATCH_NEEDS_SCHEDULE_OR_DUE = 'Give a payment schedule or a single due date for the whole batch.';
+    public const BATCH_DUE_DATE_REQUIRED = 'A lump-sum batch needs a due date.';
+    public const SCHEDULE_SHARE_POSITIVE = 'Every instalment needs a share greater than zero.';
+    public const BATCH_ALREADY_DECIDED = 'This invoice batch already has a decision.';
+    public const BATCH_NOTHING_TO_ISSUE = 'Every student in this batch is already invoiced from this plan. There is nothing to issue.';
+
+    // --- Fees: reminders (§3.7) -------------------------------------------
+    public const REMINDER_KIND_INVALID = 'Choose an overdue or a due-soon reminder.';
+
     // --- Fees: payments & checkout (§3.7) ---------------------------------
     public const PAYMENT_NOT_FOUND = 'That payment could not be found.';
     public const PAYMENT_ALREADY_REVERSED = 'This payment has already been reversed.';

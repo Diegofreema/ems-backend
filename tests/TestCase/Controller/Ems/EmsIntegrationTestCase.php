@@ -35,6 +35,10 @@ abstract class EmsIntegrationTestCase extends TestCase
 
     /** Secure finance children must be cleared even when a test adds its own cleanup list. */
     private const FINANCE_CLEANUP_TABLES = [
+        // Bulk-invoicing children first: batch rows foreign-key invoices/students.
+        'ems_invoice_batch_rows',
+        'ems_invoice_batches',
+        'ems_fee_reminders',
         'ems_finance_adjustment_payouts',
         'ems_receipts',
         'ems_finance_ledger_events',

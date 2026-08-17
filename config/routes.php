@@ -254,6 +254,9 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->get('/fee-awards', ['controller' => 'FeeAwards', 'action' => 'index']);
         $s->post('/fee-awards', ['controller' => 'FeeAwards', 'action' => 'add']);
         $s->post('/fee-awards/{id}/end', ['controller' => 'FeeAwards', 'action' => 'endAward'])->setPass(['id']);
+        $s->post('/fee-awards/{id}/decision', ['controller' => 'FeeAwards', 'action' => 'decide'])->setPass(['id']);
+        $s->get('/fee-award-end-requests', ['controller' => 'FeeAwards', 'action' => 'endRequests']);
+        $s->post('/fee-award-end-requests/{id}/decision', ['controller' => 'FeeAwards', 'action' => 'decideEnd'])->setPass(['id']);
 
         // --- Fees: invoices (§3.7) — static/sub paths before {id} ---
         $s->get('/invoices', ['controller' => 'Invoices', 'action' => 'index']);
@@ -263,8 +266,23 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->post('/invoices/{id}/reschedule', ['controller' => 'Invoices', 'action' => 'reschedule'])->setPass(['id']);
         $s->post('/invoices/{id}/payments', ['controller' => 'Invoices', 'action' => 'addPayment'])->setPass(['id']);
         $s->post('/invoices/{id}/payment-submissions', ['controller' => 'Invoices', 'action' => 'submitPayment'])->setPass(['id']);
+        $s->post('/invoices/{id}/change-requests', ['controller' => 'Invoices', 'action' => 'requestChange'])->setPass(['id']);
         $s->post('/invoices/{id}/checkout', ['controller' => 'Invoices', 'action' => 'checkout'])->setPass(['id']);
         $s->get('/invoices/{id}', ['controller' => 'Invoices', 'action' => 'view'])->setPass(['id']);
+        $s->get('/invoice-change-requests', ['controller' => 'InvoiceChangeRequests', 'action' => 'index']);
+        $s->post('/invoice-change-requests/{id}/decision', ['controller' => 'InvoiceChangeRequests', 'action' => 'decide'])->setPass(['id']);
+
+        // --- Fees: bulk invoicing (§3.7) — static/sub paths before {id} ---
+        $s->post('/invoice-batches/preview', ['controller' => 'InvoiceBatches', 'action' => 'preview']);
+        $s->post('/invoice-batches', ['controller' => 'InvoiceBatches', 'action' => 'add']);
+        $s->get('/invoice-batches', ['controller' => 'InvoiceBatches', 'action' => 'index']);
+        $s->post('/invoice-batches/{id}/decision', ['controller' => 'InvoiceBatches', 'action' => 'decide'])->setPass(['id']);
+        $s->get('/invoice-batches/{id}', ['controller' => 'InvoiceBatches', 'action' => 'view'])->setPass(['id']);
+
+        // --- Fees: reminders (§3.7) — overdue / due-soon nudges to families ---
+        $s->post('/fee-reminders/preview', ['controller' => 'FeeReminders', 'action' => 'preview']);
+        $s->post('/fee-reminders', ['controller' => 'FeeReminders', 'action' => 'send']);
+        $s->get('/fee-reminders', ['controller' => 'FeeReminders', 'action' => 'index']);
 
         // --- Fees: payments, checkout confirm & refunds (§3.7) ---
         $s->post('/payments/{id}/reverse', ['controller' => 'Payments', 'action' => 'reverse'])->setPass(['id']);
@@ -278,8 +296,10 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->get('/payment-submissions/{id}/evidence', ['controller' => 'PaymentSubmissions', 'action' => 'evidence'])->setPass(['id']);
         $s->post('/payment-submissions/{id}/decision', ['controller' => 'PaymentSubmissions', 'action' => 'decide'])->setPass(['id']);
         $s->post('/statement-batches', ['controller' => 'StatementBatches', 'action' => 'add']);
+        $s->get('/statement-batches', ['controller' => 'StatementBatches', 'action' => 'index']);
         $s->get('/statement-batches/{id}/rows', ['controller' => 'StatementBatches', 'action' => 'rows'])->setPass(['id']);
         $s->post('/cash-batches', ['controller' => 'CashBatches', 'action' => 'add']);
+        $s->get('/cash-batches', ['controller' => 'CashBatches', 'action' => 'index']);
         $s->post('/cash-batches/{id}/close', ['controller' => 'CashBatches', 'action' => 'close'])->setPass(['id']);
         $s->post('/refunds', ['controller' => 'Refunds', 'action' => 'request']);
         $s->post('/refunds/{id}/process', ['controller' => 'Refunds', 'action' => 'process'])->setPass(['id']);

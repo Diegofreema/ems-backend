@@ -9,6 +9,34 @@ use Cake\Utility\Text;
 
 final class StatementBatchesController extends AppController
 {
+    /**
+     * GET /statement-batches — newest first with row counts, so the payment
+     * panel can offer imported rows for picking instead of pasted ids.
+     */
+    public function index(): Response
+    {
+        $rowCounts = [];
+        foreach (
+            $this->tenant()->query('EmsBankStatementRows')
+            ->select(['batch_id', 'total' => 'COUNT(*)'])
+            ->groupBy('batch_id')
+            ->all() as $r
+        ) {
+            $rowCounts[(string)$r->batch_id] = (int)$r->total;
+        }
+        $items = [];
+        foreach ($this->tenant()->query('EmsBankStatementBatches')->orderByDesc('created')->all() as $b) {
+            $items[] = [
+                'id' => (string)$b->id,
+                'sourceName' => (string)$b->source_name,
+                'importedOn' => (string)$b->created,
+                'rowCount' => $rowCounts[(string)$b->id] ?? 0,
+            ];
+        }
+
+        return $this->json(['items' => $items, 'total' => count($items), 'page' => 1, 'pageSize' => count($items)]);
+    }
+
     public function add(): Response
     {
         if ($this->viewer->role !== 'bursar') {

@@ -53,6 +53,7 @@ abstract class EmsDbTestCase extends TestCase
         'ems_audit_events',
         'ems_invoices',
         'ems_fee_plan_versions',
+        'ems_fee_award_end_requests',
         'ems_fee_awards',
         'ems_sequences',
         'ems_subject_allocations',
@@ -326,6 +327,48 @@ abstract class EmsDbTestCase extends TestCase
             'status' => $over['status'] ?? 'active',
             'awarded_by' => $over['awarded_by'] ?? 'Admin',
             'awarded_on' => $over['awarded_on'] ?? '2025-08-01',
+        ]);
+
+        return $id;
+    }
+
+    /** Seed a finance adjustment request (reversal/refund) for a payment. */
+    protected function seedAdjustmentRequest(
+        string $schoolId,
+        string $paymentId,
+        string $invoiceId,
+        string $studentId,
+        string $requestedBy,
+        array $over = [],
+    ): string {
+        $id = $over['id'] ?? Text::uuid();
+        $this->db->insert('ems_finance_adjustment_requests', [
+            'id' => $id, 'school_id' => $schoolId, 'payment_id' => $paymentId,
+            'invoice_id' => $invoiceId, 'student_id' => $studentId,
+            'kind' => $over['kind'] ?? 'reversal', 'amount' => $over['amount'] ?? 1000,
+            'reason' => $over['reason'] ?? 'Correction', 'requested_by_user_id' => $requestedBy,
+            'requested_by_name' => $over['requested_by_name'] ?? 'Bursar', 'created' => $this->now(),
+        ]);
+
+        return $id;
+    }
+
+    /** Seed an independent finance decision for any request type. */
+    protected function seedFinanceDecision(
+        string $schoolId,
+        string $requestType,
+        string $requestId,
+        string $requestedBy,
+        string $decidedBy,
+        string $decision,
+        string $reason = 'Reviewed.',
+    ): string {
+        $id = Text::uuid();
+        $this->db->insert('ems_finance_decisions', [
+            'id' => $id, 'school_id' => $schoolId, 'request_type' => $requestType,
+            'request_id' => $requestId, 'decision' => $decision, 'reason' => $reason,
+            'requested_by_user_id' => $requestedBy, 'decided_by_user_id' => $decidedBy,
+            'decided_by_name' => 'Admin', 'decided_at' => $this->now(),
         ]);
 
         return $id;

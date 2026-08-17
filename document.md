@@ -185,7 +185,8 @@ Structural rules baked into this catalog:
 
 - **Enrolments are per-session history**: a student's current `classGroup` is a denormalized convenience; moving a student up a class next session writes a new enrolment row and never overwrites last year's placement.
 - **Import staging is isolated**: uploaded rows live only in `importBatches`/`importRows` until a person commits the batch.
-- **Financial records are append-only**: corrections are new rows (credit notes, reversals, refunds), never destructive edits.
+- **Financial records are append-only**: corrections are new rows (reversals, refunds, change requests), never destructive edits.
+- **Secure-finance tables** (not in the mock's catalog; created by the secure-ledger migrations): `ems_fee_plan_versions`, `ems_fee_award_end_requests`, `ems_payment_submissions`, `ems_finance_evidence`, `ems_finance_decisions`, `ems_receipts`, `ems_finance_ledger_events`, `ems_finance_adjustment_requests`, `ems_finance_adjustment_payouts`, `ems_invoice_change_requests`, `ems_invoice_events`, `ems_bank_statement_batches`/`_rows`, `ems_cash_batches`, `ems_finance_idempotency`, `ems_finance_integrity_locks`.
 - **Released results pin their grading scheme version** (`resultReleases`), so a later scheme change can never rewrite an issued report card.
 
 ---
@@ -309,526 +310,101 @@ type ExamPaperDetail = {
 
 #### Endpoints
 
-| Endpoint | Request | Response | Behavior |
-|---|---|---|---|
-| `GET /exams` | `page`, `pageSize`, `query`, `status` (`ExamStatus \| 'all'`), `sort` (`'recent' \| 'title'`) | `Paginated<Exam>` | query matches `title`/`session` case-insensitive. `recent`: session desc, then startDate desc. `title`: title asc, session desc. |
-| `GET /exams/:id` | — | `Exam` | 404 "That examination could not be found." |
-| `POST /exams` | `ExamInput` | `Exam` | Newest-first ordering. No audit event. |
-| `GET /exams/:id/schedules` | — | `ExamSchedule[]` | Sorted date → startTime → level → subject asc. |
-| `POST /exams/:id/schedules` | `ExamScheduleInput` | `ExamSchedule` | 422 "`{subject}` is already scheduled for `{level}`." on duplicate (subject, level). 422 "The sitting must fall inside the examination window." when date outside `[startDate, endDate]`. |
-| `DELETE /exam-schedules/:id` | — | `void` | 404 "That sitting could not be found." |
-| `GET /exams/:id/paper` | `subject`, `level` | `ExamPaperDetail` | Bank filtered by subject only, sorted type → marks → topic. |
-| `PUT /exams/:id/paper` | `subject`, `level`, `questionIds: string[]` | `ExamPaper` | Upsert. 422 "A paper needs at least one question." on empty; 422 "The paper references a question that no longer exists." if any id absent from the bank. |
-| `GET /exams/:id/gradesheet` | `classId`, `subject` | `Gradesheet` | See computation rules below. Bands come from the exam's **pinned** scheme when published. |
-| `PUT /exams/:id/grades` | `classId`, `subject`, `entries: GradeEntry[]` | `void` | Requires class access (403 "This class is not assigned to you."). 422 "Results for this examination are released. Reopen it for correction first." when published. **When the offering is assessment-backed, incoming `ca` is ignored** (existing rows keep theirs, new rows get `ca: null`) — only `exam` marks are written. Upsert key: examId + studentId + subject. |
-| `GET /exams/:id/broadsheet` | `classId` | `Broadsheet` | Every subject gets a cell per row; missing = `{ total: null, grade: null }`. |
-| `GET /exams/:id/report-card/:studentId` | — | `ReportCard` | Requires student access (403 "This record belongs to another family."). When the student's class group no longer exists: `subjects: []`, `average/position: null`, `classSize: 0`, attendance and bands still returned. |
-| `GET /exams/:id/releases` | — | `ResultRelease[]` | Newest version first. |
-| `GET /exams/:id/release-preview` | — | `ReleasePreview` | See preview rules below. |
-| `POST /exams/:id/release` | `{ reason?: string }` | `ResultRelease` | 403 "A teacher cannot release results — that needs the academic lead." when role=teacher. 409 "Only an examination in grading can release its results." unless status=`grading`. Creates release with `version = priorCount + 1`, `schemeVersion` = current active grading scheme version, `reason` stored only for versions > 1. Side effect: exam → `published`. Audit: `results.released` / `exam` / "Released {title} {session} results (version {v})". |
-| `POST /exams/:id/reopen` | `{ reason: string }` | `Exam` | 403 "A teacher cannot reopen released results." 409 "Only released results can be reopened for correction." unless published. 422 "Reopening released results needs a reason for the record." on blank reason. Marks current `released` row `superseded` (+`supersededOn`) — never deleted. Exam → `grading`. Audit: `results.reopened` / `exam`, with `reason`. |
+Every non-retired POST below requires the `Idempotency-Key` header (Secure finance rules above). "Bursar drafts" endpoints additionally 403 for any other role; "admin decides" endpoints are administrator-only and refuse the requester.
 
-#### Computation rules (must match exactly)
-
-- **CA resolution** (used by gradesheet, broadsheet, report card): if the offering (examId × classGroupId × subject) has **any** assessment (including drafts), CA is derived from assessments (see §3.2) and scaled to `exam.caMax`; otherwise CA is `ExamGrade.ca`.
-- **Total** = `ca + exam` only when **both** are non-null; otherwise `null` — no partial totals.
-- **Roster** = students with `status === 'enrolled'` in the class (matched by class *name*), sorted by `"{lastName} {firstName}"`. Students with no grade rows still appear with null marks.
-- **Averages** = mean of non-null totals, rounded to **1 decimal place**; `null` when nothing counted.
-- **Position** = standard competition ranking over non-null averages descending: ties share the earlier position, the next rank skips (1, 2, 2, 4). Null averages get `position: null`.
-- **Per-subject classAverage** on the report card = mean of that subject's non-null totals across the class, 1 dp.
-- **Attendance summary** = tallies over all of the student's attendance rows (no date window); `rate = total === 0 ? 0 : present / total`.
-- **Release preview**: `expectedScores` = for each enrolled student, the number of distinct subjects scheduled for their class's *level* in this exam; `enteredScores` = grade rows with both `ca` and `exam` non-null; `missingScores = max(0, expected - entered)`. A release with missing scores **is allowed** — the preview is informational.
-- **Grading scheme pinning**: a published exam is always graded with the scheme version recorded on its `released` release row (`schemeVersion`), even if that version is retired. Unpublished exams use the current active scheme.
-
----
-
-### 3.2 Assessments (teacher-created CA)
-
-#### Types
-
-```ts
-type AssessmentStatus = 'draft' | 'open' | 'closed' | 'published'
-
-type Assessment = {
-  id: string; schoolId: string; examId: string
-  classGroupId: string; subject: string
-  name: string          // e.g. "Class Test 1"
-  maximum: number       // this assessment's own ceiling, 1..100 (integer)
-  dueOn?: string        // ISO date
-  status: AssessmentStatus
-  createdBy: string; createdOn: string
-}
-type AssessmentInput = { name: string; maximum: number; dueOn?: string }
-
-type AssessmentScore = {
-  id: string; schoolId: string; assessmentId: string; studentId: string
-  score: number | null      // 0..assessment.maximum; null = marked absent
-  absentReason?: string
-  enteredBy: string
-}
-
-type AssessmentSummary = Assessment & {
-  scoredCount: number; rosterCount: number; missingCount: number
-}
-
-type AssessmentScoreRow = {
-  studentId: string; studentName: string; admissionNumber: string
-  score: number | null; absentReason?: string
-  recorded: boolean   // a score row exists (may still be null = absent)
-}
-type AssessmentScoresheet = { assessment: Assessment; className: string; rows: AssessmentScoreRow[] }
-type ScoreEntry = { studentId: string; score: number | null; absentReason?: string }
-
-type DerivedCa = {
-  ca: number | null       // scaled to exam.caMax, whole-number rounded; null when nothing scored
-  earned: number; possible: number
-  scoredCount: number; missingCount: number; contributingCount: number
-  complete: boolean       // contributingCount > 0 && missingCount === 0
-}
-```
-
-#### The CA derivation algorithm (the single most important rule to replicate)
-
-For an offering (examId × classGroupId × subject) and a student:
-
-1. Contributing assessments = those with `status ∈ {open, closed, published}` (**drafts never contribute**).
-2. Per contributing assessment: no score row → `missingCount++`, **excluded from the ratio (never counted as zero)**; row with `score: null` → excused absence, contributes to neither side; otherwise `earned += score`, `possible += assessment.maximum`.
-3. `ca = possible === 0 ? null : Math.round((earned / possible) * exam.caMax)` — **whole number**.
-
-An offering "has assessments" (switching the gradesheet to derived CA) when **any** assessment exists for the triple, drafts included.
-
-#### Endpoints
+**Fee plans & structures**
 
 | Endpoint | Request | Response | Behavior |
 |---|---|---|---|
-| `GET /assessments` | `examId`, `classGroupId`, `subject` | `AssessmentSummary[]` | All statuses. `missingCount = max(0, rosterCount - scoredOnRoster)`. Sort: `(dueOn ?? createdOn)` asc, then name. |
-| `GET /assessments/:id` | — | `Assessment` | 404 "That assessment could not be found." |
-| `POST /assessments` | `examId`, `classGroupId`, `subject`, `AssessmentInput` | `Assessment` | Class access required. 404 if exam missing. 422 "An assessment needs a name." / "The maximum score must be between 1 and 100." Stored with `status: 'draft'`, `maximum` rounded to integer. Audit: `assessment.created` / `assessment` / 'Created assessment "{name}" (max {max}) for {class} {subject}'. |
-| `POST /assessments/:id/status` | `{ status, reason? }` | `Assessment` | Class access. Transitions: `draft→open`, `open→closed`, `closed→open` (reopen, **reason required**: 422 "Reopening a closed assessment needs a reason for the record."), `closed→published`; anything else 409 "An assessment cannot go from {from} to {to}." Audit: `assessment.opened` / `assessment.reopened` / `assessment.closed` / `assessment.published`, `reason` stored only on reopen. |
-| `GET /assessments/:id/scoresheet` | — | `AssessmentScoresheet` | **Class access required on this read.** Full enrolled roster. |
-| `PUT /assessments/:id/scores` | `ScoreEntry[]` | `void` | Class access. 409 "This assessment is closed. Reopen it for correction before changing scores." unless status ∈ {draft, open}. Validate ALL entries before writing any: 422 "A score was entered for a student not enrolled in this class." / "A score cannot be negative." / "A score of {n} is above this assessment's maximum of {max}." Upsert per student; an existing row cleared to `score: null` with no `absentReason` is **deleted** (unresolved mark, not a zero). No audit event. |
+| `GET /fee-structures` | `page`, `pageSize`, `query` (level match), `term \| 'all'` | `Paginated<FeeStructure>` | Read-only legacy pricing rows. Sort term, then level. |
+| `GET /fee-structures/:id` | — | `FeeStructure` | |
+| `POST /fee-structures`, `PUT /fee-structures/:id`, `DELETE /fee-structures/:id` | — | — | **Retired, always 410.** Pricing changes are new fee-plan versions. |
+| `GET /fee-plan-versions` | — | `{ items: FeePlanVersion[], total, page: 1, pageSize }` | Newest first, each joined to its decision state. Not truly paginated. |
+| `POST /fee-plan-versions` | `{ sourceStructureId?, session, term, level, items: {name, amount}[], schedule? }` | `FeePlanVersion` (201, `pending`) | Bursar drafts. Each item needs a name and amount > 0; ≥ 1 item. `version` increments per sourceStructureId. Audit `fee_plan.created`. |
+| `POST /fee-plan-versions/:id/decision` | `{ decision, reason }` | `FeePlanVersion` | Admin decides; creator refused. Audit `fee_plan.approved`/`fee_plan.rejected`. |
 
----
-
-### 3.3 Grading schemes (versioned scale)
-
-#### Types
-
-```ts
-type GradeBand = { letter: string; min: number; label: string; tone: string }
-// tone ∈ 'text-success' | 'text-info' | 'text-warning' | 'text-destructive' | 'text-muted-foreground'
-
-type GradingScheme = {
-  id: string; schoolId: string
-  version: number
-  status: 'active' | 'retired'
-  bands: GradeBand[]           // stored DESCENDING by min; last band min must be 0
-  effectiveFrom: string
-  createdBy: string
-  note?: string                // why the scale changed (versions > 1)
-}
-```
-
-Default bands when a school has never saved a scheme (synthesised, version 1, createdBy "System"):
-A≥70 Excellent, B≥60 Very good, C≥50 Credit, D≥45 Pass, E≥40 Fair, F≥0 Fail.
-
-Grade lookup: first band (scanning in stored order) with `total >= min`; last band is the fallback.
-
-#### Endpoints
+**Scholarships & discounts**
 
 | Endpoint | Request | Response | Behavior |
 |---|---|---|---|
-| `GET /grading/active` | — | `GradingScheme` | Never 404s — returns the synthesised default if none saved. |
-| `GET /grading/history` | — | `GradingScheme[]` | Newest version first. Empty when only the default exists. |
-| `PUT /grading` | `{ bands: GradeBand[]; note?: string }` | `GradingScheme` | Validation (422, first failure wins): ≥2 bands; every letter non-blank ("Every grade needs a letter."); every label non-blank ("Grade {L} needs a name."); min integer 0–100 ("The mark for grade {L} must be a whole number from 0 to 100."); strictly descending mins ("Each grade must start below the one above it."); last min = 0 ("The lowest grade must start at 0 so every mark has a grade."); distinct letters case-insensitive ("Two grades share a letter — each letter must be distinct."). **No-op guard**: identical bands → return active unchanged, no new version. Otherwise retire the active row and append `version = max + 1` — **never mutate an existing version** (this is what keeps released results durable). Audit: `grading.updated` / `grading_scheme` / "Updated the grading scale to version {v} ({n} grades)", `reason` = note. |
+| `GET /fee-awards` | `page`, `pageSize`, `query`, `term \| 'all'`, `status \| 'all'` | `Paginated<FeeAward>` | All four statuses listable. An all-terms award matches every term filter. Sort: status asc, awardedOn desc, name. |
+| `POST /fee-awards` | `FeeAwardInput` | `FeeAward` (201, `pending`) | **Bursar drafts.** 422s: name / value ≤ 0 / percentage > 100 / student / level messages as before. Prices nothing until approved. Audit `fee_award.requested`. |
+| `POST /fee-awards/:id/decision` | `{ decision, reason }` | `FeeAward` | Admin decides; drafter refused; only a `pending` award (422 otherwise). Approved → `active`; rejected → `rejected` (permanent). Audit `fee_award.approved`/`fee_award.rejected`. |
+| `POST /fee-awards/:id/end` | `{ reason }` | `FeeAwardEndRequest` (201, `pending`) | **Bursar requests.** Only an `active` award; one open end request per award (409). The award stays active. Audit `fee_award.end_requested`. |
+| `GET /fee-award-end-requests` | — | `{ items: FeeAwardEndRequest[], … }` | Newest first with award context, for the desk. |
+| `POST /fee-award-end-requests/:id/decision` | `{ decision, reason }` | `FeeAwardEndRequest` | Admin decides; requester refused. Approval ends the award today with the REQUESTER'S reason; issued invoices keep their lines. Rejection re-opens the road. Audit `fee_award.ended`/`fee_award.end_rejected`. |
 
----
-
-### 3.4 Question bank
-
-#### Types
-
-```ts
-type QuestionType = 'objective' | 'theory'
-type QuestionDifficulty = 'easy' | 'medium' | 'hard'
-
-type Question = {
-  id: string; schoolId: string
-  subject: string
-  level: string            // e.g. "JSS 1" or "All levels"
-  type: QuestionType
-  difficulty: QuestionDifficulty
-  topic: string
-  text: string
-  options: string[]        // objective only; empty for theory
-  answer: string           // correct option (objective) or marking guide (theory)
-  marks: number
-}
-type QuestionInput = Omit<Question, 'id' | 'schoolId'>
-```
-
-#### Endpoints
+**Invoices & change requests**
 
 | Endpoint | Request | Response | Behavior |
 |---|---|---|---|
-| `GET /questions` | `page`, `pageSize`, `query`, `subject \| 'all'`, `type \| 'all'`, `difficulty \| 'all'` | `Paginated<Question>` | Query matches text/topic/subject case-insensitive. Sort subject → topic. |
-| `GET /questions/:id` | — | `Question` | 404 "That question could not be found." |
-| `GET /questions/subjects` | — | `string[]` | Distinct subjects, sorted. |
-| `POST /questions` | `QuestionInput` | `Question` | Newest first. |
-| `PUT /questions/:id` | `QuestionInput` | `Question` | 404 as above. |
-| `DELETE /questions/:id` | — | `void` | Idempotent (no 404). No referential check — exam papers drop dangling ids at read time. |
+| `GET /invoices` | `query`, `status: PaymentStatus \| 'all'`, `term \| 'all'`, `page`, `pageSize`, `sort: 'recent' \| 'balance' \| 'name'` | `Paginated<InvoiceWithBalance>` | Status filters on the **derived** paymentStatus. Query over studentName/invoiceNumber/classGroup. |
+| `GET /invoices/:id` | — | `InvoiceDetail` | 404 "That invoice could not be found." Payments paidOn desc; legacy refunds requestedOn desc; submissions/adjustments/changeRequests newest first. |
+| `POST /invoices/preview` | `{ studentId, feePlanVersionId }` | `InvoicePreview` | Same pricing routine as issue. A `lineItems` key → 422. Only ACTIVE awards apply. |
+| `POST /invoices` | `InvoiceInput` | `Invoice` (201) | **Bursar drafts.** Plan must be decision-approved (422 "Invoices can only be issued from an approved fee plan version."). One live invoice per student per plan version — a duplicate → 422 ("This student already has an invoice from this fee plan version."; a cancelled one does not block re-issue). Instalment rules below; dueDate = last instalment's date when scheduled. Audit `invoice.issued`. |
+| `POST /invoices/:id/change-requests` | `{ kind: 'cancel', reason }` or `{ kind: 'reschedule', reason, agreedWith, instalments }` | `InvoiceChangeRequest` (201, `pending`) | **Bursar requests.** Cancelled invoice → 422; one open request per invoice → 409. Cancel: net paid must be 0 (422 "This invoice has payments recorded against it. Reverse them before cancelling.") and no undecided claim (422). Reschedule: agreedWith + instalment rules validated at request time. Audit `invoice_change.requested`. |
+| `GET /invoice-change-requests` | — | `{ items: InvoiceChangeRequest[], … }` | Newest first with invoice context. |
+| `POST /invoice-change-requests/:id/decision` | `{ decision, reason }` | `InvoiceChangeRequest` | Admin decides; requester refused. Approval applies atomically — cancel re-checks net paid 0, sets `cancelled` with the REQUEST'S reason; reschedule re-validates, swaps the plan, appends a `ScheduleRevision` (revisedBy = requester, agreedWith from the request) — and appends an `ems_invoice_events` row (`cancelled`/`rescheduled`, decision id). Audit `invoice_change.approved`/`invoice_change.rejected`. |
+| `POST /invoices/:id/cancel`, `POST /invoices/:id/reschedule`, `POST /invoices/:id/payments` | — | — | **Retired, always 410** — use change requests / payment submissions. |
+| `POST /invoices/:id/checkout`, `POST /checkout/:paymentId/confirm` | — | — | Online seams, deliberately inactive: **always 503** until a server-verified provider adapter exists. Browser-supplied outcomes can never complete a payment. |
 
-No audit events in this module.
-
----
-
-### 3.5 Transcripts (cross-year, read-only)
-
-#### Types
-
-```ts
-type TranscriptSubject = {
-  subject: string
-  ca: number | null; exam: number | null; total: number | null
-  grade: GradeBand | null
-}
-
-type TranscriptTerm = {
-  key: string                      // "{session}::{term}" — dedup identity
-  session: string
-  term: 'First' | 'Second' | 'Third'
-  classGroup: string
-  average: number | null
-  position: number | null
-  classSize: number | null
-  remark: string
-  source: 'released' | 'history'   // real release vs migrated summary row
-  schemeVersion: number | null     // pinned scale for released; null for history
-  subjects: TranscriptSubject[]    // detail for released; [] for history
-}
-
-type TranscriptSession = {
-  session: string
-  classGroup: string | null
-  terms: TranscriptTerm[]
-  average: number | null           // mean of the session's term averages, 1 dp
-}
-
-type Transcript = {
-  school: School; student: Student
-  sessions: TranscriptSession[]
-  cumulativeAverage: number | null // mean of every counted term average, 1 dp
-  termsCounted: number
-  gradeBands: GradeBand[]          // the CURRENT active scale (printed as the key)
-  generatedOn: string
-}
-```
-
-#### Endpoint
-
-`GET /students/:studentId/transcript` → `Transcript`. Student access required (403 "This record belongs to another family."). Fully read-only.
-
-Assembly rules:
-
-1. **Released exams only** — an exam contributes a term only when `status === 'published'`. The cohort for ranking is taken from the grade rows' `classGroupId` (the class *at the time*), not the student's current class. Subjects graded with the exam's **pinned** scheme; term `schemeVersion` records it.
-2. **Academic history rows** (migrated `AcademicTermRecord` summaries: session, term, classGroup, average, position, classSize, remark) fill terms **only where no released term holds the same `{session}::{term}` key** — a real release supersedes an imported line.
-3. Sessions = union of the student's enrolment sessions and all term sessions, ascending; a session with a placement but no results still appears with `terms: []`. Terms within a session ordered First, Second, Third.
-4. Transcript totals read `ExamGrade.ca` **directly** (not the assessment-derived CA).
-5. `classSize` for a released term = students with any grade row in that cohort (not current roster size).
-
----
-
-### 3.6 Admissions
-
-#### Types
-
-```ts
-type AdmissionCycle = {
-  id: string; schoolId: string
-  name: string          // e.g. "2026/2027 Admissions"
-  session: string
-  opensOn: string; closesOn: string
-  status: 'open' | 'closed'
-}
-
-type ApplicationStatus =
-  | 'submitted' | 'under_review' | 'waitlisted' | 'offered' | 'accepted'
-  | 'declined' | 'withdrawn' | 'expired' | 'enrolled'
-
-type ApplicationGuardian = {
-  firstName: string; lastName: string
-  relationship: 'mother' | 'father' | 'guardian' | 'sibling' | 'other'
-  phone: string; email: string; occupation: string
-}
-
-type AdmissionApplication = {
-  id: string; schoolId: string; cycleId: string
-  applicationNumber: string        // e.g. "APP-0007", unique within the school
-  firstName: string; lastName: string
-  dateOfBirth: string
-  gender: 'female' | 'male' | 'other'
-  desiredLevel: string             // e.g. "JSS 1"
-  previousSchool: string
-  guardian: ApplicationGuardian
-  note: string
-  submittedOn: string
-  status: ApplicationStatus
-  offer?: { madeOn: string; expiresOn: string; note: string }
-  studentId?: string               // set at enrolment — the student this became
-}
-
-type ApplicationReview = {        // append-only decision history
-  id: string; schoolId: string; applicationId: string
-  reviewer: string
-  action: ApplicationStatus       // the status the application moved TO
-  note: string
-  decidedOn: string
-}
-
-type ApplicationInput = {
-  firstName: string; lastName: string; dateOfBirth: string
-  gender: StudentGender; desiredLevel: string; previousSchool: string
-  guardian: ApplicationGuardian; note: string
-  documents: DocumentUpload[]     // files attached on the public form
-}
-
-type ApplicationDetail = {
-  application: AdmissionApplication
-  cycle: AdmissionCycle | null
-  reviews: ApplicationReview[]    // decidedOn desc
-}
-
-type ReviewAction = 'start_review' | 'waitlist' | 'offer' | 'accept'
-  | 'decline' | 'withdraw' | 'mark_expired'
-```
-
-#### State machine (server-enforced)
-
-| action | legal from | to |
-|---|---|---|
-| `start_review` | submitted | under_review |
-| `waitlist` | under_review | waitlisted |
-| `offer` | under_review, waitlisted | offered |
-| `accept` | offered | accepted |
-| `decline` | submitted, under_review, waitlisted, offered | declined |
-| `withdraw` | submitted, under_review, waitlisted, offered | withdrawn |
-| `mark_expired` | offered | expired |
-| enrol (own endpoint) | accepted | enrolled |
-
-Illegal transition → **409** "A {status with space} application cannot take this action."
-
-#### Endpoints
+**Bulk invoicing** — the same two-person spine as a single invoice, drafted once for a whole class. A run carries a PERCENTAGE instalment template (each student's own total differs once awards apply, so absolute amounts cannot be shared): rows `{label, dueOn, percent}` whose shares total 100, split per student to the kobo with the remainder on the last instalment; omit the template for a single `dueDate` lump sum.
 
 | Endpoint | Request | Response | Behavior |
 |---|---|---|---|
-| `GET /public/apply/:slug` (unauthenticated) | — | `{ school: {id,name,shortName,motto,logo?}; cycle: AdmissionCycle \| null; levels: string[] } \| null` | Unknown slug → `null` (not 404). `cycle` = the open cycle whose window contains today. `levels` = distinct class-group levels. |
-| `GET /admission-cycles` | — | `AdmissionCycle[]` | opensOn desc. |
-| `GET /admission-cycles/open` | — | `AdmissionCycle \| null` | Open + in window today. |
-| `GET /applications` | `page`, `pageSize`, `query`, `status \| 'all'` | `Paginated<AdmissionApplication>` | Query matches full name or applicationNumber, case-insensitive. Sort submittedOn desc. |
-| `GET /applications/summary` | — | `Record<ApplicationStatus, number>` | All nine keys, zero-filled. |
-| `GET /applications/:id` | — | `ApplicationDetail` | 404 "That application could not be found." |
-| `POST /public/apply/:slug` (unauthenticated) | `ApplicationInput` | `AdmissionApplication` | 422 "Admissions are closed at the moment. Please check back later." when no open cycle. 422 "The applicant needs a first and last name." `applicationNumber` = next school sequence "APP-{0001}". Attached documents stored as `owner: 'application'` files (uploader = guardian name), **validated before the row is inserted — one transaction**. No audit event (the review trail is the record). |
-| `POST /applications/:id/review` | `{ action: ReviewAction; note?; offer?: { expiresOn; note } }` | `AdmissionApplication` | Transition legality (409). Offer: 422 "An offer needs an expiry date." / "The offer expiry must be a future date."; stores `offer = { madeOn: today, expiresOn, note }`. Decline with blank note: 422 "Declining an application needs a reason for the record." mark_expired before expiry passed: 422 "This offer has not passed its expiry date yet." Appends an `ApplicationReview` with `action` = destination status. |
-| `POST /applications/:id/enrol` | `{ classGroup: string }` (class **name**) | `AdmissionApplication` | 409 "Only an accepted application can be enrolled." 422 "Choose the class the student joins." when the name is unknown. 422 "{class} is a {level} class — this applicant applied for {desiredLevel}." on level mismatch. **Side effects, one transaction**: creates the Student (status `enrolled`, next admission-number sequence "{PREFIX}/{0001}", guardian name/phone denormalized, `enrolledOn` today); creates the primary Guardian row; copies every application document onto the student record (bytes copied too, verification state preserved, application copies kept); sets application `status: 'enrolled'` + `studentId`; appends review "Enrolled into {class}. {n} documents moved onto the student record." |
+| `POST /invoice-batches/preview` | `{ feePlanVersionId, classGroups?, schedule?, dueDate? }` | `BatchPreview` — `{ classGroups, schedule, toIssue: {studentId, studentName, total, awarded, instalments, dueOn}[], skipped: {studentId, studentName, reason}[], issueCount, skipCount, studentCount, totalAmount }` | FINANCE dry run. Resolves the ENROLLED roster in the chosen class groups (default: every class group at the plan's level), prices each against its awards, and splits by the template. No write, no Idempotency-Key. |
+| `POST /invoice-batches` | `{ feePlanVersionId, classGroups?, schedule?, dueDate? }` | `InvoiceBatch` (201, `pending`) | **Bursar drafts.** Plan must be approved. Percentage shares must total 100 (else 422 "The instalments come to N% of the bill…"); a share ≤ 0 → 422; give a template or a `dueDate`, not neither (422). ≥ 1 class group (422). 422 if nothing would issue (everyone already invoiced). Stores criteria only — the echoed `preview` is advisory. Audit `invoice_batch.requested`. |
+| `GET /invoice-batches` | — | `{ items: InvoiceBatch[], … }` | Newest first with derived status (`pending`/`approved`/`rejected`); an approved batch carries `issueCount`/`skipCount`. |
+| `GET /invoice-batches/:id` | — | `InvoiceBatch` | A pending batch carries a FRESH `preview` (recomputed now); a decided batch carries `rows[]` (per student: the issued invoice's number/total, or the skip reason). |
+| `POST /invoice-batches/:id/decision` | `{ decision, reason }` | `InvoiceBatch` | **Admin decides; drafter refused (403); one decision only (409).** Approval RECOMPUTES the roster and prices fresh (issue-time authoritative), then issues every invoice in ONE transaction — all-or-nothing. Anyone already carrying a live invoice from the plan is skipped and recorded, never double-billed. Audit `invoice_batch.approved`/`invoice_batch.rejected`. |
 
----
-
-### 3.7 Fees
-
-#### Money convention
-
-**Integer kobo — every amount field in this module is minor units** (₦90,000 travels as `9000000`). All amounts are integers (the server rounds with `Math.round` at ingestion — that now means rounding to the nearest kobo); there is **no `currency` field** on any entity (NGN implicit). Kobo is Paystack's native unit, so checkout amounts and webhook amounts need no conversion. The frontend converts only at its edges: display divides by 100, amount inputs are typed in Naira and multiplied by 100 before they reach the API. Derived figures (percentage awards, instalment splits) are computed in kobo, so no precision is lost to Naira rounding.
-
-#### Types
-
-```ts
-type FeeLineItem = {
-  name: string
-  amount: number        // positive for a charge, NEGATIVE for an award line
-  kind?: 'charge' | 'award'   // absent means charge
-  awardId?: string      // which award produced this line
-}
-
-type ScheduleRow = { label: string; dueOn: string; percent: number }  // percents sum to 100
-
-type FeeStructure = {
-  id: string; schoolId: string
-  session: string; term: 'First' | 'Second' | 'Third'
-  level: string                 // every stream at the level shares the bill
-  items: FeeLineItem[]          // charges only
-  total: number                 // derived sum, stored
-  schedule?: ScheduleRow[]      // absent = one payment by one date
-}
-type FeeStructureInput = Omit<FeeStructure, 'id' | 'schoolId' | 'total'>
-
-type FeeAward = {
-  id: string; schoolId: string
-  name: string
-  kind: 'scholarship' | 'discount'
-  basis: 'percentage' | 'amount'
-  value: number                 // percent 1..100, or kobo
-  appliesToItem: string         // charge name, or 'all' for the whole bill
-  scope: 'student' | 'level'
-  studentId?: string; studentName?: string   // scope=student
-  level?: string                              // scope=level
-  session: string
-  term: 'First' | 'Second' | 'Third' | 'all'
-  status: 'active' | 'ended'
-  note?: string
-  awardedBy: string; awardedOn: string
-  endedOn?: string; endedReason?: string
-}
-
-type Instalment = { number: number; label: string; dueOn: string; amount: number }
-type InstalmentState = Instalment & {
-  paid: number; balance: number
-  status: 'paid' | 'part_paid' | 'overdue' | 'upcoming'
-}
-type ScheduleRevision = {
-  revisedOn: string; revisedBy: string
-  agreedWith: string; reason: string
-  previous: Instalment[]        // the schedule this revision replaced
-}
-type RescheduleInput = {
-  agreedWith: string; reason: string
-  instalments: { label: string; dueOn: string; amount: number }[]
-}
-
-type Invoice = {
-  id: string; schoolId: string
-  invoiceNumber: string         // "GFC/INV/2526T3/0001"
-  studentId: string
-  studentName: string; classGroup: string   // denormalized at issue
-  session: string; term: TermName
-  issuedOn: string
-  dueDate: string               // on a schedule: the final instalment's date
-  lineItems: FeeLineItem[]      // charges then award lines
-  total: number
-  status: 'issued' | 'cancelled'
-  instalments?: Instalment[]
-  scheduleRevisions?: ScheduleRevision[]
-  cancelledOn?: string; cancellationReason?: string
-}
-type InvoiceInput = {
-  studentId: string; session: string; term: TermName; dueDate: string
-  lineItems: FeeLineItem[]      // CHARGES ONLY — server applies awards itself
-  instalments?: { label: string; dueOn: string; amount: number }[]
-}
-type InvoicePreview = {
-  lineItems: FeeLineItem[]; charged: number
-  awarded: number               // negative or zero
-  total: number
-  applied: { award: FeeAward; amount: number; base: number }[]
-}
-
-type PaymentStatus = 'paid' | 'part_paid' | 'unpaid' | 'overdue' | 'cancelled'
-type InvoiceWithBalance = Invoice & {
-  paid: number; balance: number
-  paymentStatus: PaymentStatus
-  charged: number; awarded: number
-  schedule: InstalmentState[]   // [] when payable in one go
-  nextDue?: InstalmentState     // oldest instalment still owing
-}
-
-type Payment = {
-  id: string; schoolId: string; invoiceId: string; studentId: string
-  receiptNumber: string         // "GFC/RCP/000123"; empty while pending
-  amount: number
-  method: 'cash' | 'bank_transfer' | 'card' | 'pos' | 'cheque'
-  reference?: string
-  paidOn: string
-  note?: string
-  state: 'pending' | 'completed' | 'failed' | 'reversed'
-  reversedOn?: string; reversalReason?: string
-  channel?: 'provider' | 'office'
-  failedOn?: string; failureReason?: string
-}
-type PaymentInput = { amount: number; method: PaymentMethod; reference?: string; paidOn: string; note?: string }
-
-type Refund = {
-  id: string; schoolId: string
-  paymentId: string; invoiceId: string; studentId: string
-  amount: number; reason: string
-  status: 'pending' | 'processed' | 'rejected'
-  requestedBy: string; requestedOn: string
-  decidedBy?: string; decidedOn?: string
-  decisionNote?: string
-}
-type RefundInput = { paymentId: string; amount: number; reason: string }
-
-type InvoiceDetail = InvoiceWithBalance & { payments: Payment[]; refunds: Refund[] }
-
-type StudentLedger = {
-  studentId: string; studentName: string; classGroup: string
-  invoices: InvoiceWithBalance[]
-  payments: Payment[]
-  awards: FeeAward[]            // live AND ended, all sessions
-  totalInvoiced: number; totalPaid: number; totalBalance: number
-}
-
-type Receipt = {
-  payment: Payment; invoice: Invoice
-  paidToDate: number            // invoice's CURRENT net paid
-  balanceAfter: number
-}
-
-type ReconciliationReport = {
-  pending: (Payment & { studentName; invoiceNumber })[]
-  failed: (Payment & { studentName; invoiceNumber })[]
-  completedCount: number; completedAmount: number   // gross, not net of refunds
-  pendingAmount: number; reversedCount: number
-  refundsPending: (Refund & { studentName; invoiceNumber; receiptNumber; paymentAmount })[]
-  refundedAmount: number; refundedCount: number     // processed only
-}
-
-type FeesReport = {
-  term: TermName | 'all'
-  totalInvoiced: number; totalCollected: number     // collected is NET of processed refunds
-  totalAwarded: number                              // positive figure
-  totalOutstanding: number; collectionRate: number  // 0..1
-  invoiceCount: number; paidCount: number; overdueCount: number
-  byClass: { key: string; label: string; invoiced: number; collected: number; outstanding: number; collectionRate: number }[]
-  recentPayments: Payment[]                         // completed, school-wide, latest 8
-}
-```
-
-#### Core arithmetic (the backend is the single authority — replicate exactly)
-
-- **Net paid per invoice** (every balance derives from this):
-  `paid = Σ completed payments − Σ processed refunds`. Pending/failed/reversed payments and pending/rejected refunds contribute nothing.
-- **Award application at issue** (`applyAwards`): awards sorted student-scope-first, then awardedOn asc, then name. Base per award = the named charge's amount (case-insensitive name match) or the whole charge total for `'all'`; base ≤ 0 → award skipped. `raw = percentage ? round(base·value/100) : round(value)`; applied `amount = min(raw, base, remainingBill)` — **no compounding** (each award computed on the original charge) and the bill floors at zero. Produces a negative line `kind: 'award'` labeled "{name} ({value}% of {target})" or "{name} (off {target})".
-- **Active awards for an invoice**: `status = 'active'` AND session matches AND (term = 'all' or matches) AND (student award → studentId matches; level award → level = student's level, where level = classGroup minus its last character, "JSS 1A" → "JSS 1"). A child gets both their own scholarships and their level's discounts. **Awards are applied only at issue — never re-applied to an existing invoice; ending an award never edits an issued bill.**
-- **Instalment waterfall**: payments settle instalments oldest-first. Per instalment: `paidHere = clamp(netPaid − consumed, 0, amount)`; status `paid` when balance 0, else `overdue` when dueOn < today, else `part_paid` when something paid, else `upcoming`. `nextDue` = first with balance > 0.
-- **Invoice payment status**: cancelled → `cancelled`; balance ≤ 0 → `paid`; any overdue instalment (or no instalments and dueDate past) → `overdue`; paid > 0 → `part_paid`; else `unpaid`.
-- **Instalment validation** (issue and reschedule): every row needs a date (422 "Every instalment needs a date.") and amount > 0 (422 "Every instalment needs an amount greater than zero."); rounded amounts must sum **exactly** to the invoice total after awards (422 "The instalments add up to ₦X, but this invoice comes to ₦Y once scholarships and discounts are applied."); rows sorted by dueOn and renumbered 1..n; labels default "Instalment {n}".
-- **Numbering**: invoice "{PREFIX}/INV/{termCode}/{seq 4-digit}" (termCode e.g. "2526T1"), per-term sequence; receipt "{PREFIX}/RCP/{seq 5-digit}", school-wide sequence. Backend: use real DB sequences per scope, keep the format.
-
-#### Endpoints
+**Fee reminders** — overdue / due-soon nudges to owing families, an in-app portal row AND an e-mail to the primary guardian (the AbsenceAlerts two-phase pattern). One unit per invoice: overdue = the oldest overdue instalment; due_soon = the next-due instalment falling within 7 days. A per-instalment 7-day cooldown suppresses re-reminding, so a repeated or scheduled run never re-nags the same family. Not a money write — no two-person decision, no Idempotency-Key (the cooldown is the replay guard).
 
 | Endpoint | Request | Response | Behavior |
 |---|---|---|---|
-| `GET /fee-structures` | `page`, `pageSize`, `query` (level match), `term \| 'all'` | `Paginated<FeeStructure>` | Sort term, then level. |
-| `POST /fee-structures` | `FeeStructureInput` | `FeeStructure` | Blank-named items dropped; schedule rows without a date dropped; surviving schedule percents must sum to 100 (422 "The instalments come to X% of the bill. A payment schedule has to account for all of it."). |
-| `GET /fee-awards` | `page`, `pageSize`, `query`, `term \| 'all'`, `status \| 'all'` | `Paginated<FeeAward>` | An all-terms award matches every term filter. Sort: active first, awardedOn desc, name. |
-| `POST /fee-awards` | `FeeAwardInput` | `FeeAward` | 422s: "Give the award a name families will recognise." / "Enter how much the award is worth." (value ≤ 0) / "A percentage award cannot be more than 100% of the fee." / "Choose the student this award is for." / "Choose the level this discount applies to." Audit: `fee_award.granted` / `fee_award` / "{name} awarded to {who} — {value} off {target}." |
-| `POST /fee-awards/:id/end` | `{ reason }` | `FeeAward` | 422 "This award has already ended." / "Say why the award is ending." Never deleted; issued invoices keep it. Audit: `fee_award.ended`, with reason. |
-| `GET /invoices` | `query`, `status: PaymentStatus \| 'all'`, `term \| 'all'`, `page`, `pageSize`, `sort: 'recent' \| 'balance' \| 'name'` | `Paginated<InvoiceWithBalance>` | Status filters on the **derived** paymentStatus. Query over studentName/invoiceNumber/classGroup. `recent` = issuedOn desc; `balance` = balance desc; `name` = studentName asc. |
-| `GET /invoices/:id` | — | `InvoiceDetail` | 404 "That invoice could not be found." Payments paidOn desc (all states); refunds requestedOn desc (all statuses). |
-| `POST /invoices/preview` | `{ studentId, session, term, lineItems }` | `InvoicePreview` | Same pricing routine as issue — preview and bill can never differ. 404 "That student could not be found." |
-| `POST /invoices` | `InvoiceInput` | `Invoice` | Charges cleaned (blank names dropped, amounts rounded and floored at 0); zero charges → 422 "An invoice needs at least one line item." **Client-sent award lines are ignored — the server prices awards itself.** Instalment rules above; dueDate = last instalment's date when scheduled. |
-| `POST /invoices/:id/cancel` | `{ reason }` | `Invoice` | 422 "This invoice has already been cancelled." / "This invoice has payments recorded against it. Reverse them before cancelling." (net-of-refunds check). |
-| `POST /invoices/:id/reschedule` | `RescheduleInput` | `Invoice` | 403 "Rescheduling a payment plan needs a bursar or administrator." 422 "A cancelled invoice cannot be rescheduled." / "Record who agreed the new arrangement." / "Record why the schedule is being changed." / "A reschedule needs at least one instalment." + instalment rules (must equal invoice total). Appends a `ScheduleRevision` preserving the old rows (a single-payment invoice's history row is `{number:1, label:'Full payment', dueOn: dueDate, amount: total}`); replaces instalments; dueDate = new last date. Payments are NOT touched — money re-settles the new rows oldest-first. Audit: `invoice.rescheduled` / `invoice` / "Rescheduled {number} for {student} into {n} instalment(s) ending {date}, agreed with {who}. The schedule it replaced is kept as history.", with reason. |
-| `POST /invoices/:id/payments` | — | — | Retired direct posting endpoint. Always `410 Gone`; use `/invoices/:id/payment-submissions` and separate administrator approval. |
-| `POST /payments/:id/reverse` | `{ reason }` | `Payment` | 404 "That payment could not be found." Only a completed payment can be reversed and a reason is required. Sets state `reversed` + reversedOn/reason and audits `payment.reversed`. |
-| `POST /invoices/:id/checkout` | `{ amount }` | `Payment` | Online collection seam, deliberately inactive until a verified provider adapter is implemented. Always 503 "Online payments are not available yet. Record an offline payment instead." |
-| `POST /checkout/:paymentId/confirm` | provider event | `Payment` | Online confirmation seam, deliberately inactive. Browser supplied outcomes cannot complete a payment or issue a receipt. Always returns the same 503 as checkout until the signed webhook and server verification flow replaces this guard. |
-| `GET /payments/:id/receipt` | — | `Receipt` | Finance users and linked family accounts may read a receipt within their student scope. 404 "That receipt could not be found." 422 "A receipt is issued only after the payment is confirmed." (pending/failed; a reversed payment still yields its receipt). |
-| `POST /refunds` | `RefundInput` | `Refund` | 403 "Only a bursar or administrator can request a refund." 422 "Only a confirmed payment can be refunded." / "A refund needs a reason for the record." / "Enter a refund amount greater than zero." Refundable remaining = payment.amount − Σ non-rejected refunds on it (pending reserves; rejected frees): over → 422 "A refund cannot exceed the ₦X paid." or "Only ₦X of this payment is left to refund." Moves no money. Audit: `refund.requested`. |
-| `POST /refunds/:id/process` | `{ note? }` | `Refund` | 403 "Processing a refund needs an administrator." 409 "Only a refund awaiting approval can be processed." **Separation of duties**: approver must differ from requester → 403 "A refund must be approved by someone other than the person who requested it." This is the only point money leaves — net paid drops immediately. Audit: `refund.processed`. |
-| `POST /refunds/:id/reject` | `{ reason }` | `Refund` | 403 "Deciding a refund needs an administrator." 409 "Only a refund awaiting approval can be rejected." 422 "Rejecting a refund needs a reason for the record." Frees the reserved amount. Audit: `refund.rejected`. |
-| `GET /reconciliation` | — | `ReconciliationReport` | Shapes above; completed figures are gross; refunded figures are processed-only. |
-| `GET /students/:studentId/ledger` | — | `StudentLedger` | Student access required (403 family message). totalInvoiced excludes cancelled invoices; awards list is unfiltered by session. |
-| `GET /fees/report` | `term \| 'all'` | `FeesReport` | Collected figures net of processed refunds; byClass sorted outstanding desc; recentPayments not term-filtered. |
+| `POST /fee-reminders/preview` | `{ kind: 'overdue' \| 'due_soon' }` | `{ kind, targets: {invoiceId, studentId, studentName, invoiceNumber, instalmentNumber, dueOn, amount}[], remindableCount, suppressedCount, recipientCount }` | FINANCE dry run. Owing families for the kind, minus anyone inside the cooldown. Invalid kind → 422. No write. |
+| `POST /fee-reminders` | `{ kind }` | `{ kind, remindedCount, suppressedCount, emailed, recipientCount }` | **Bursar sends** (non-bursar → 403; invalid kind → 422). Writes a per-instalment marker + a portal bell row per parent account, then e-mails the primary guardian through the masked send log; a family with no e-mail on file is recorded `suppressed`, never lost. Audit `fee_reminder.sent`. |
+| `GET /fee-reminders` | — | `{ items: {id, subject, audienceLabel, recipientCount, sentOn, sentBy}[], … }` | Recent send-log headers, newest first. |
+
+The scheduled seam: `bin/cake send_fee_reminders [--school ID] [--kind overdue\|due_soon]` runs the identical service across every school for both kinds. There is no built-in scheduler — a nightly run needs an external cron; the cooldown makes repeated runs safe.
+
+**Offline payment claims**
+
+| Endpoint | Request | Response | Behavior |
+|---|---|---|---|
+| `POST /invoices/:id/payment-submissions` | `PaymentInput` | `PaymentSubmission` (201, `pending`) | **Bursar drafts.** Cancelled invoice → 422. amount > 0 and ≤ balance; payer + relationship required; receivedOn strict date, not future; cash → acknowledgement + open batch (duplicate ack in batch → 409); non-cash → reference + evidence (PDF/JPEG/PNG ≤ 10 MB, magic-bytes checked, ClamAV-scanned fail-closed). Audit `payment_submission.created`. |
+| `GET /payment-submissions` | — | `{ items: PaymentSubmission[], … }` | Newest first with decision + evidence metadata. |
+| `GET /payment-submissions/:id/evidence` | — | file stream | 423 while `scanStatus` ≠ `clean`. `Content-Disposition: inline`, `Cache-Control: private, no-store`. |
+| `POST /payment-submissions/:id/decision` | `{ decision, reason }` | `{ submission, payment \| null }` | Admin decides; recorder refused. Approval requires reconciliation: cash → its batch closed; non-cash → clean evidence + a `credit` statement row with identical amount AND reference, not already used by another approval (409), cheques additionally "cleared" in the row description. Then posts the payment (`completed`, channel `office`), appends the `payment` ledger event, writes the immutable receipt (overpay → 409), and drops an in-app "Payment verified" notification. Audit `payment_submission.approved`/`.rejected`. |
+
+**Adjustments (reversals & refunds)**
+
+| Endpoint | Request | Response | Behavior |
+|---|---|---|---|
+| `POST /payments/:id/adjustment-requests` | `{ kind: 'reversal' \| 'refund', amount, reason }` | `AdjustmentRequest` (201, `pending`) | **Bursar requests.** 0 < amount ≤ payment amount; amount must fit within the UNRESERVED posted amount (pending requests and approved-unpaid refunds reserve) else 409. Audit `adjustment.requested`. |
+| `GET /finance-adjustments` | — | `{ items: AdjustmentRequest[], … }` | With decision status. |
+| `POST /finance-adjustments/:id/decision` | `{ decision, reason }` | `{ id, decision, kind }` | Admin decides; requester refused. An approved **reversal** posts its negative ledger event immediately; an approved **refund** waits for payout. Audit `adjustment.approved`/`.rejected`. |
+| `POST /finance-adjustments/:id/payout-confirmation` | `{ statementRowId, evidence }` | `{ id, kind, status: 'paid', amount }` | A **second** administrator (not the approver) confirms an approved refund against a `debit` statement row for the exact amount with clean evidence; posts the negative `refund` ledger event. Audit `refund.payout_confirmed`. |
+| `POST /payments/:id/reverse`, `POST /refunds`, `POST /refunds/:id/process`, `POST /refunds/:id/reject` | — | — | **Retired, always 410.** |
+
+**Batches & desk reads**
+
+| Endpoint | Request | Response | Behavior |
+|---|---|---|---|
+| `POST /statement-batches` | `{ sourceName, csv }` | `{ id, sourceName, rowCount, fileHash }` (201) | **Bursar imports.** Header must contain date, reference, description, amount, direction; amounts positive integer kobo; references uppercased; per-row and per-file hashes — the same file cannot be imported twice. Audit `statement.imported`. |
+| `GET /statement-batches` | — | `{ items: StatementBatch[], … }` | Newest first with row counts — feeds the claim/payout pickers. |
+| `GET /statement-batches/:id/rows` | — | `{ items: StatementRow[], … }` | |
+| `POST /cash-batches` | `{ batchNumber, collectionDate }` | `{ id, batchNumber, collectionDate, status: 'open' }` (201) | **Bursar opens.** Audit `cash_batch.opened`. |
+| `GET /cash-batches` | — | `{ items: CashBatch[], … }` | Newest first; `expectedAmount` = Σ cash claims inside. |
+| `POST /cash-batches/:id/close` | `{ countedAmount }` | `{ id, batchNumber, expectedAmount, countedAmount, status: 'closed', approvedCount }` | **Admin closes.** Counted must equal the acknowledgements (422); already closed → 409. Closing approves every undecided cash claim in the batch (posting payments/receipts/ledger). Audit `cash_batch.closed`. |
+| `GET /reconciliation` | — | `ReconciliationReport` | OFFICER read (registrar included). Shapes above. |
+| `GET /payments/:id/receipt` | — | `Receipt` | Finance + linked family within student scope. 404 / 422 "A receipt is issued only after the payment is confirmed." (a reversed payment still yields its receipt). `paidToDate`/`balanceAfter` come from the STORED immutable receipt row, not recomputed. |
+| `GET /students/:studentId/ledger` | — | `StudentLedger` | Student access required (403 family message). totalInvoiced excludes cancelled invoices; awards are active + ended only. |
+| `GET /fees/report` | `term \| 'all'` | `FeesReport` | OFFICER read. Collected figures net of corrections; byClass sorted outstanding desc; recentPayments not term-filtered. |
+
+#### Finance audit keys (the actual catalog)
+
+`fee_plan.created/.approved/.rejected` · `fee_award.requested/.approved/.rejected/.end_requested/.ended/.end_rejected` · `invoice.issued` · `invoice_batch.requested/.approved/.rejected` · `invoice_change.requested/.approved/.rejected` · `payment_submission.created/.approved/.rejected` · `adjustment.requested/.approved/.rejected` · `refund.payout_confirmed` · `cash_batch.opened/.closed` · `statement.imported` · `fee_reminder.sent` · `finance.idempotency_conflict` · `finance.integrity_lock_cleared`
 
 ---
 
@@ -1383,7 +959,7 @@ type PortalIdentity = {
 type WardOverview = {
   student: Student
   attendance: { rate: number; absences: number; windowDays: number }   // last 20 school days
-  fees: { balance: number; overdueCount: number }
+  fees: { balance: number; overdueCount: number; nextDueDate?: string }
   latestResult: {
     examId: string; examTitle: string; session: string
     average: number; subjects: number
@@ -1699,7 +1275,7 @@ type IncidentDetail = Incident & { candidates: { userId: string; name: string }[
 
 Every mutation that must write an audit event, by action key (entityType in parentheses):
 
-`session.closed`, `session.reopened` (session) · `term.closed`, `term.reopened` (term) · `results.released`, `results.reopened` (exam) · `assessment.created`, `assessment.opened`, `assessment.reopened`, `assessment.closed`, `assessment.published` (assessment) · `grading.updated` (grading_scheme) · `fee_award.granted`, `fee_award.ended` (fee_award) · `invoice.rescheduled` (invoice) · `refund.requested`, `refund.processed`, `refund.rejected` (refund) · `document.uploaded`, `document.verified`, `document.rejected`, `document.removed`, `document.downloaded`, `document.link_refused` (document) · `student.merged`, `student.promoted`, `student.repeated`, `student.graduated`, `student.withdrawn` (student) · `import.merged` (student/guardian), `import.committed`, `import.discarded` (import) · `report.downloaded` (report) · `privacy_request.logged`, `privacy_request.identity_verified`, `privacy_request.approved`, `privacy_request.refused`, `privacy_request.fulfilled` (privacy_request) · `incident.recorded`, `incident.contained`, `incident.investigating`, `incident.reported`, `incident.closed`, `incident.responder_added` (incident).
+`session.closed`, `session.reopened` (session) · `term.closed`, `term.reopened` (term) · `results.released`, `results.reopened` (exam) · `assessment.created`, `assessment.opened`, `assessment.reopened`, `assessment.closed`, `assessment.published` (assessment) · `grading.updated` (grading_scheme) · `fee_plan.created`, `fee_plan.approved`, `fee_plan.rejected` (fee_plan_version) · `fee_award.requested`, `fee_award.approved`, `fee_award.rejected`, `fee_award.end_requested`, `fee_award.ended`, `fee_award.end_rejected` (fee_award) · `invoice.issued`, `invoice_change.requested`, `invoice_change.approved`, `invoice_change.rejected` (invoice) · `invoice_batch.requested`, `invoice_batch.approved`, `invoice_batch.rejected` (invoice_batch) · `payment_submission.created`, `payment_submission.approved`, `payment_submission.rejected` (payment_submission) · `adjustment.requested`, `adjustment.approved`, `adjustment.rejected`, `refund.payout_confirmed` (adjustment_request) · `cash_batch.opened`, `cash_batch.closed` (cash_batch) · `statement.imported` (statement_batch) · `fee_reminder.sent` (fee_reminder) · `finance.idempotency_conflict` (idempotency) · `finance.integrity_lock_cleared` (finance) · `document.uploaded`, `document.verified`, `document.rejected`, `document.removed`, `document.downloaded`, `document.link_refused` (document) · `student.merged`, `student.promoted`, `student.repeated`, `student.graduated`, `student.withdrawn` (student) · `import.merged` (student/guardian), `import.committed`, `import.discarded` (import) · `report.downloaded` (report) · `privacy_request.logged`, `privacy_request.identity_verified`, `privacy_request.approved`, `privacy_request.refused`, `privacy_request.fulfilled` (privacy_request) · `incident.recorded`, `incident.contained`, `incident.investigating`, `incident.reported`, `incident.closed`, `incident.responder_added` (incident).
 
 Deliberately NOT audited in the frontend contract (the record lives elsewhere): admissions reviews (the review table is the trail), attendance corrections (on the session row), exam/schedule/paper/grade/score saves, invoice issue/cancel, payment record/reverse, checkout, announcements. The backend may add audit coverage to these (additive, non-breaking) — §3.9 recommends it for payment reversal and invoice cancellation.
 

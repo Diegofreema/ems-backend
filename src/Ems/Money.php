@@ -220,6 +220,44 @@ final class Money
         return null;
     }
 
+    /**
+     * Split a bill across a PERCENTAGE schedule template — the proportional
+     * counterpart of the absolute Fees::buildInstalments, for bulk invoicing
+     * where every student's total differs so one fixed amount schedule cannot
+     * apply. Each template row is `{label, dueOn, percent}` and the percentages
+     * are assumed already validated to sum to 100 (Fees::normalizeScheduleTemplate).
+     * Amounts are integer minor units; the remainder lands on the last row so the
+     * instalments sum to `$total` to the kobo. A non-positive total (a fully
+     * awarded bill) yields no schedule — a lump-sum invoice.
+     *
+     * @param array<int, array<string, mixed>> $template normalized {label, dueOn, percent}
+     * @return array<int, array<string, mixed>> instalment rows {number, label, dueOn, amount}
+     */
+    public static function splitByPercent(int $total, array $template): array
+    {
+        if ($template === [] || $total <= 0) {
+            return [];
+        }
+        $out = [];
+        $allocated = 0;
+        $last = count($template) - 1;
+        foreach ($template as $i => $row) {
+            $amount = $i === $last
+                ? $total - $allocated
+                : self::jsRound($total * (int)$row['percent'] / 100);
+            $allocated += $amount;
+            $label = trim((string)($row['label'] ?? ''));
+            $out[] = [
+                'number' => $i + 1,
+                'label' => $label !== '' ? $label : 'Instalment ' . ($i + 1),
+                'dueOn' => (string)$row['dueOn'],
+                'amount' => $amount,
+            ];
+        }
+
+        return $out;
+    }
+
     // --- status -------------------------------------------------------------
 
     /**

@@ -9,6 +9,8 @@ use App\Ems\Serializer\FeeSerializer;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
+use Cake\I18n\FrozenTime;
+use Cake\Utility\Text;
 
 /**
  * Invoices — what one student owes, priced against the awards ledger at issue
@@ -116,6 +118,12 @@ class InvoicesController extends AppController
         $plan = $this->approvedPlan((string)($body['feePlanVersionId'] ?? ''));
         if (array_key_exists('lineItems', $body)) {
             $this->fail(422, 'Custom client supplied charge or discount lines are not accepted.');
+        }
+        // One live invoice per student per plan version — the guard the schema
+        // never enforced (a bare unique index would wrongly block re-issuing
+        // after a cancellation). The bulk path applies the same rule as a skip.
+        if ($this->feesEngine()->hasLiveInvoiceForPlan((string)$student->id, (string)$plan->id)) {
+            $this->fail(422, Messages::INVOICE_DUPLICATE_PLAN);
         }
         $session = (string)$plan->session;
         $term = (string)$plan->term;
@@ -302,6 +310,141 @@ class InvoicesController extends AppController
         });
 
         return $this->json($result, 201);
+    }
+
+    /**
+     * POST /invoices/{id}/change-requests — a bursar asks for a cancel or a
+     * reschedule; a different administrator decides. Cancel is only valid while
+     * nothing has been collected: undo the money first, then void the bill.
+     */
+    public function requestChange(string $id): Response
+    {
+        if ($this->viewer->role !== 'bursar') {
+            $this->fail(403, 'Only a bursar can request an invoice change.');
+        }
+        $body = $this->body();
+        $key = trim((string)$this->request->getHeaderLine('Idempotency-Key'));
+        $request = $body + ['id' => $id];
+        $replay = $this->financeSecurity()->replay($this->viewer, 'invoice_change.create', $key, $request);
+        if ($replay !== null) {
+            return $this->json($replay['body'], $replay['status']);
+        }
+        $kind = (string)($body['kind'] ?? '');
+        if (!in_array($kind, ['cancel', 'reschedule'], true)) {
+            $this->fail(422, 'Choose cancel or reschedule.');
+        }
+        $reason = trim((string)($body['reason'] ?? ''));
+        if ($reason === '') {
+            $this->fail(422, 'Say why this invoice should change.');
+        }
+        $table = $this->fetchTable('EmsInvoiceChangeRequests');
+        $result = $table->getConnection()->transactional(function () use ($id, $body, $key, $request, $kind, $reason, $table) {
+            $this->financeSecurity()->assertWritable();
+            $invoice = $this->tenant()->query('EmsInvoices')
+                ->where(['id' => $id])
+                ->epilog('FOR UPDATE')
+                ->first();
+            if ($invoice === null) {
+                $this->fail(404, Messages::INVOICE_NOT_FOUND);
+            }
+            if ((string)$invoice->status === 'cancelled') {
+                $this->fail(422, Messages::INVOICE_ALREADY_CANCELLED);
+            }
+            if ($this->openChangeRequestExists($id)) {
+                $this->fail(409, 'This invoice already has a change request awaiting a decision.');
+            }
+            $payload = ['requestedByName' => $this->viewer->name];
+            if ($kind === 'cancel') {
+                $this->assertCancellable($id);
+            } else {
+                $agreedWith = trim((string)($body['agreedWith'] ?? ''));
+                if ($agreedWith === '') {
+                    $this->fail(422, Messages::RESCHEDULE_AGREED_WITH);
+                }
+                $instalments = $this->feesEngine()->buildInstalments(
+                    is_array($body['instalments'] ?? null) ? $body['instalments'] : [],
+                    (int)$invoice->total,
+                );
+                if ($instalments === []) {
+                    $this->fail(422, Messages::RESCHEDULE_NEEDS_INSTALMENT);
+                }
+                $payload += ['agreedWith' => $agreedWith, 'instalments' => $instalments];
+            }
+            $row = $table->newEntity([
+                'id' => Text::uuid(),
+                'school_id' => $this->viewer->schoolId,
+                'invoice_id' => $id,
+                'kind' => $kind,
+                'payload' => $payload,
+                'reason' => $reason,
+                'requested_by_user_id' => $this->viewer->userId,
+                'created' => FrozenTime::now('UTC'),
+            ], ['validate' => false]);
+            $table->saveOrFail($row);
+            $result = InvoiceChangeRequestsController::changeRequestWire($row, $invoice, null);
+            $this->audit()->log(
+                $this->viewer,
+                'invoice_change.requested',
+                'invoice',
+                $id,
+                sprintf(
+                    'A %s request for %s was recorded and awaits independent approval.',
+                    $kind,
+                    (string)$invoice->invoice_number,
+                ),
+                $reason,
+            );
+            $this->financeSecurity()->remember($this->viewer, 'invoice_change.create', $key, $request, 201, $result);
+
+            return $result;
+        });
+
+        return $this->json($result, 201);
+    }
+
+    /**
+     * Cancel keeps the ledger invariant simple: nothing collected, nothing
+     * pending — a claim awaiting verification must be decided first.
+     */
+    private function assertCancellable(string $invoiceId): void
+    {
+        if ($this->feesEngine()->paidFor($invoiceId) > 0) {
+            $this->fail(422, Messages::INVOICE_HAS_PAYMENTS);
+        }
+        $claims = $this->tenant()->query('EmsPaymentSubmissions')
+            ->select(['id'])
+            ->where(['invoice_id' => $invoiceId])
+            ->all()
+            ->extract('id')
+            ->toList();
+        if ($claims === []) {
+            return;
+        }
+        $decided = $this->tenant()->query('EmsFinanceDecisions')
+            ->where(['request_type' => 'payment_submission', 'request_id IN' => $claims])
+            ->count();
+        if (count($claims) > $decided) {
+            $this->fail(422, 'A payment claim on this invoice is awaiting verification. Decide it before cancelling.');
+        }
+    }
+
+    /** True when this invoice has a change request no administrator has decided. */
+    private function openChangeRequestExists(string $invoiceId): bool
+    {
+        $ids = $this->tenant()->query('EmsInvoiceChangeRequests')
+            ->select(['id'])
+            ->where(['invoice_id' => $invoiceId])
+            ->all()
+            ->extract('id')
+            ->toList();
+        if ($ids === []) {
+            return false;
+        }
+        $decided = $this->tenant()->query('EmsFinanceDecisions')
+            ->where(['request_type' => 'invoice_change', 'request_id IN' => $ids])
+            ->count();
+
+        return count($ids) > $decided;
     }
 
     /**

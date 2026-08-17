@@ -9,6 +9,37 @@ use Cake\Utility\Text;
 
 final class CashBatchesController extends AppController
 {
+    /**
+     * GET /cash-batches — newest first, with the running total of the cash
+     * claims inside each, so nobody has to hand-copy a batch id or re-add
+     * acknowledgements before closing.
+     */
+    public function index(): Response
+    {
+        $expected = [];
+        foreach (
+            $this->tenant()->query('EmsPaymentSubmissions')
+            ->select(['cash_batch_id', 'amount'])
+            ->where(['method' => 'cash'])
+            ->all() as $s
+        ) {
+            $expected[(string)$s->cash_batch_id] = ($expected[(string)$s->cash_batch_id] ?? 0) + (int)$s->amount;
+        }
+        $items = [];
+        foreach ($this->tenant()->query('EmsCashBatches')->orderByDesc('created')->all() as $b) {
+            $items[] = [
+                'id' => (string)$b->id,
+                'batchNumber' => (string)$b->batch_number,
+                'collectionDate' => (string)$b->collection_date,
+                'status' => $b->closed_at ? 'closed' : 'open',
+                'expectedAmount' => $expected[(string)$b->id] ?? 0,
+                'countedAmount' => $b->counted_amount !== null ? (int)$b->counted_amount : null,
+            ];
+        }
+
+        return $this->json(['items' => $items, 'total' => count($items), 'page' => 1, 'pageSize' => count($items)]);
+    }
+
     public function add(): Response
     {
         if ($this->viewer->role !== 'bursar') {

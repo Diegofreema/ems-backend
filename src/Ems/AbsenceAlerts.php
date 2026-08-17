@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Ems;
 
-use Cake\Datasource\EntityInterface;
 use Cake\ORM\Locator\LocatorInterface;
 use Cake\Utility\Text;
 

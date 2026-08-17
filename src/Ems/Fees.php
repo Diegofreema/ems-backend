@@ -358,6 +358,152 @@ class Fees
         return $out;
     }
 
+    // --- bulk invoicing -----------------------------------------------------
+
+    /** "{PREFIX}/IB/{termCode}/{seq 4-digit}" — per-term batch sequence. */
+    public function nextInvoiceBatchNumber(string $termCode): string
+    {
+        $seq = (new Sequences($this->locator))->next($this->schoolId, 'invoice_batch:' . $termCode, 0);
+
+        return sprintf('%s/IB/%s/%04d', $this->prefix(), $termCode, $seq);
+    }
+
+    /** True when the student already carries a non-cancelled invoice from this plan version. */
+    public function hasLiveInvoiceForPlan(string $studentId, string $planVersionId): bool
+    {
+        return $this->tenant()->query('EmsInvoices')
+            ->where(['student_id' => $studentId, 'fee_plan_version_id' => $planVersionId, 'status !=' => 'cancelled'])
+            ->count() > 0;
+    }
+
+    /**
+     * Clean and validate a bulk batch's PERCENTAGE instalment template. Each row
+     * needs a date and a share, and the shares must come to exactly 100% — the
+     * proportional analogue of buildInstalments' sum-to-total check, since each
+     * student's own total differs. Sorted by date. Returns [] for no rows, which
+     * means a lump-sum batch (one shared due date instead of a schedule).
+     *
+     * @param array<int, array<string, mixed>> $rows raw {label, dueOn, percent}
+     * @return array<int, array<string, mixed>>
+     */
+    public function normalizeScheduleTemplate(array $rows): array
+    {
+        $cleaned = [];
+        foreach ($rows as $r) {
+            $label = trim((string)($r['label'] ?? ''));
+            $dueOn = (string)($r['dueOn'] ?? '');
+            $percent = (int)($r['percent'] ?? 0);
+            if ($label !== '' || $dueOn !== '' || $percent !== 0) {
+                $cleaned[] = ['label' => $label, 'dueOn' => $dueOn, 'percent' => $percent];
+            }
+        }
+        if ($cleaned === []) {
+            return [];
+        }
+        foreach ($cleaned as $r) {
+            if ($r['dueOn'] === '') {
+                throw new HttpException(Messages::INSTALMENT_NEEDS_DATE, 422);
+            }
+            if ($r['percent'] <= 0) {
+                throw new HttpException(Messages::SCHEDULE_SHARE_POSITIVE, 422);
+            }
+        }
+        $sum = 0;
+        foreach ($cleaned as $r) {
+            $sum += (int)$r['percent'];
+        }
+        if ($sum !== 100) {
+            throw new HttpException(sprintf(Messages::FEE_SCHEDULE_PERCENT, $sum), 422);
+        }
+        usort($cleaned, static fn($a, $b) => strcmp((string)$a['dueOn'], (string)$b['dueOn']));
+
+        return $cleaned;
+    }
+
+    /**
+     * Resolve a bulk-invoicing batch: enumerate the enrolled students in the
+     * chosen class groups, price each against the plan and its per-student
+     * awards, split the total by the percentage template, and skip anyone who
+     * already carries a live invoice from this plan version. Recomputed fresh at
+     * preview AND at approval, so the roster and price are always issue-time
+     * authoritative — a draft's figures are advisory.
+     *
+     * @param array<int, string> $classGroups
+     * @param array<int, array<string, mixed>> $template normalized {label, dueOn, percent}
+     * @return array<string, mixed>
+     */
+    public function resolveInvoiceBatch(EntityInterface $plan, array $classGroups, array $template, ?string $dueDate): array
+    {
+        $session = (string)$plan->session;
+        $term = (string)$plan->term;
+        $lineItems = is_string($plan->items) ? json_decode($plan->items, true) : (array)$plan->items;
+
+        $students = $this->tenant()->query('EmsStudents')
+            ->where(['class_group IN' => $classGroups, 'status' => 'enrolled'])
+            ->all()
+            ->toList();
+        usort(
+            $students,
+            static fn($a, $b) => strcmp(
+                (string)$a->class_group . (string)$a->last_name . (string)$a->first_name,
+                (string)$b->class_group . (string)$b->last_name . (string)$b->first_name,
+            ),
+        );
+
+        $alreadyInvoiced = [];
+        foreach (
+            $this->tenant()->query('EmsInvoices')
+                ->select(['student_id'])
+                ->where(['fee_plan_version_id' => (string)$plan->id, 'status !=' => 'cancelled'])
+                ->all() as $inv
+        ) {
+            $alreadyInvoiced[(string)$inv->student_id] = true;
+        }
+
+        $toIssue = [];
+        $skipped = [];
+        $totalAmount = 0;
+        foreach ($students as $student) {
+            $studentId = (string)$student->id;
+            $name = trim((string)$student->first_name . ' ' . (string)$student->last_name);
+            if (isset($alreadyInvoiced[$studentId])) {
+                $skipped[] = [
+                    'studentId' => $studentId,
+                    'studentName' => $name,
+                    'classGroup' => (string)$student->class_group,
+                    'reason' => Messages::INVOICE_DUPLICATE_PLAN,
+                ];
+                continue;
+            }
+            $priced = $this->priceInvoice($student, $session, $term, $lineItems);
+            $total = (int)$priced['total'];
+            $instalments = Money::splitByPercent($total, $template);
+            $due = $instalments !== []
+                ? (string)$instalments[count($instalments) - 1]['dueOn']
+                : (string)($dueDate ?? '');
+            $toIssue[] = [
+                'studentId' => $studentId,
+                'studentName' => $name,
+                'classGroup' => (string)$student->class_group,
+                'total' => $total,
+                'awarded' => (int)$priced['awarded'],
+                'lineItems' => $priced['lineItems'],
+                'instalments' => $instalments,
+                'dueOn' => $due,
+            ];
+            $totalAmount += $total;
+        }
+
+        return [
+            'toIssue' => $toIssue,
+            'skipped' => $skipped,
+            'issueCount' => count($toIssue),
+            'skipCount' => count($skipped),
+            'studentCount' => count($students),
+            'totalAmount' => $totalAmount,
+        ];
+    }
+
     // --- read models --------------------------------------------------------
 
     /** InvoiceDetail: enriched invoice + its payments and refunds. */
@@ -379,7 +525,131 @@ class Fees
             'payments' => array_map([FeeSerializer::class, 'payment'], $payments),
             'refunds' => array_map([FeeSerializer::class, 'refund'], $refunds),
             'paymentSubmissions' => $this->paymentSubmissions(['invoice_id' => $id]),
+            'adjustments' => $this->adjustments(['invoice_id' => $id]),
+            'changeRequests' => $this->changeRequests($id),
         ];
+    }
+
+    /**
+     * Adjustment requests (reversal/refund) with their decision and payout
+     * state — the live correction trail that replaced mutable refunds.
+     *
+     * @param array<string, mixed> $conditions Tenant-scoped request filters.
+     * @return array<int, array<string, mixed>>
+     */
+    public function adjustments(array $conditions): array
+    {
+        $rows = $this->tenant()->query('EmsFinanceAdjustmentRequests')
+            ->where($conditions)
+            ->orderByDesc('created')
+            ->all()
+            ->toList();
+        if ($rows === []) {
+            return [];
+        }
+        $ids = array_map(static fn($r) => (string)$r->id, $rows);
+        $decisions = [];
+        foreach (
+            $this->tenant()->query('EmsFinanceDecisions')
+            ->where(['request_type' => 'adjustment', 'request_id IN' => $ids])
+            ->all() as $d
+        ) {
+            $decisions[(string)$d->request_id] = $d;
+        }
+        $paidOut = [];
+        foreach (
+            $this->tenant()->query('EmsFinanceAdjustmentPayouts')
+            ->where(['adjustment_request_id IN' => $ids])
+            ->all() as $p
+        ) {
+            $paidOut[(string)$p->adjustment_request_id] = true;
+        }
+
+        return array_map(function ($r) use ($decisions, $paidOut) {
+            $d = $decisions[(string)$r->id] ?? null;
+            $status = 'pending';
+            if ($d !== null) {
+                $status = (string)$d->decision;
+                if ($status === 'approved' && (string)$r->kind === 'refund') {
+                    $status = isset($paidOut[(string)$r->id]) ? 'paid' : 'awaiting_payout';
+                }
+            }
+            $out = [
+                'id' => (string)$r->id,
+                'paymentId' => (string)$r->payment_id,
+                'invoiceId' => (string)$r->invoice_id,
+                'studentId' => (string)$r->student_id,
+                'kind' => (string)$r->kind,
+                'amount' => (int)$r->amount,
+                'reason' => (string)$r->reason,
+                'requestedBy' => (string)$r->requested_by_name,
+                'requestedOn' => (string)$r->created,
+                'status' => $status,
+            ];
+            if ($d !== null) {
+                $out['decision'] = [
+                    'reason' => (string)$d->reason,
+                    'decidedBy' => (string)$d->decided_by_name,
+                    'decidedAt' => (string)$d->decided_at,
+                ];
+            }
+
+            return $out;
+        }, $rows);
+    }
+
+    /**
+     * Change requests (cancel/reschedule) for one invoice with decision state.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function changeRequests(string $invoiceId): array
+    {
+        $rows = $this->tenant()->query('EmsInvoiceChangeRequests')
+            ->where(['invoice_id' => $invoiceId])
+            ->orderByDesc('created')
+            ->all()
+            ->toList();
+        if ($rows === []) {
+            return [];
+        }
+        $ids = array_map(static fn($r) => (string)$r->id, $rows);
+        $decisions = [];
+        foreach (
+            $this->tenant()->query('EmsFinanceDecisions')
+            ->where(['request_type' => 'invoice_change', 'request_id IN' => $ids])
+            ->all() as $d
+        ) {
+            $decisions[(string)$d->request_id] = $d;
+        }
+
+        return array_map(static function ($r) use ($decisions) {
+            $d = $decisions[(string)$r->id] ?? null;
+            $payload = is_string($r->payload) ? (array)json_decode($r->payload, true) : (array)$r->payload;
+            $out = [
+                'id' => (string)$r->id,
+                'kind' => (string)$r->kind,
+                'reason' => (string)$r->reason,
+                'requestedBy' => (string)($payload['requestedByName'] ?? ''),
+                'requestedOn' => (string)$r->created,
+                'status' => $d ? (string)$d->decision : 'pending',
+            ];
+            if (isset($payload['agreedWith'])) {
+                $out['agreedWith'] = (string)$payload['agreedWith'];
+            }
+            if (isset($payload['instalments'])) {
+                $out['instalments'] = (array)$payload['instalments'];
+            }
+            if ($d !== null) {
+                $out['decision'] = [
+                    'reason' => (string)$d->reason,
+                    'decidedBy' => (string)$d->decided_by_name,
+                    'decidedAt' => (string)$d->decided_at,
+                ];
+            }
+
+            return $out;
+        }, $rows);
     }
 
     /** Receipt for one payment. Reversed still yields a receipt; pending/failed do not. */
@@ -430,6 +700,11 @@ class Fees
             ->toList();
         $awards = [];
         foreach ($awardRows as $a) {
+            // Families see granted history only — a draft awaiting approval
+            // (or a rejected one) is internal until it becomes active.
+            if (!in_array((string)$a->status, ['active', 'ended'], true)) {
+                continue;
+            }
             $mine = (string)$a->scope === 'student'
                 ? (string)$a->student_id === $studentId
                 : (string)$a->level === $level;
@@ -502,7 +777,11 @@ class Fees
         );
     }
 
-    /** Provider + office payments by state, for the bursar's reconciliation. */
+    /**
+     * The control desk's read model: verified money, correction totals from
+     * the ledger, and every queue an administrator still owes a decision —
+     * pending adjustments, approved refunds awaiting payout, undecided claims.
+     */
     public function reconciliation(): array
     {
         $invoiceById = [];
@@ -514,62 +793,72 @@ class Fees
         foreach ($payments as $p) {
             $paymentById[(string)$p->id] = $p;
         }
-        $enrichRow = function (EntityInterface $p) use ($invoiceById): array {
-            $inv = $invoiceById[(string)$p->invoice_id] ?? null;
-
-            return FeeSerializer::payment($p) + [
-                'studentName' => $inv !== null ? (string)$inv->student_name : '—',
-                'invoiceNumber' => $inv !== null ? (string)$inv->invoice_number : '—',
-            ];
-        };
-
         $completed = array_filter($payments, static fn($p) => (string)$p->state === 'completed');
-        $pending = array_filter($payments, static fn($p) => (string)$p->state === 'pending');
-        $failed = array_filter($payments, static fn($p) => (string)$p->state === 'failed');
+        $completedAmount = 0;
+        foreach ($completed as $p) {
+            $completedAmount += (int)$p->amount;
+        }
 
-        $pendingRows = array_map($enrichRow, array_values($pending));
-        usort($pendingRows, static fn($a, $b) => strcmp((string)$b['paidOn'], (string)$a['paidOn']));
-        $failedRows = array_map($enrichRow, array_values($failed));
-        usort($failedRows, static fn($a, $b) => strcmp((string)($b['failedOn'] ?? ''), (string)($a['failedOn'] ?? '')));
+        // Corrections come from the ledger, the single money authority:
+        // reversal/refund events carry negative amounts.
+        $reversedCount = 0;
+        $reversedAmount = 0;
+        $refundedCount = 0;
+        $refundedAmount = 0;
+        $events = $this->tenant()->query('EmsFinanceLedgerEvents')
+            ->select(['event_type', 'amount'])
+            ->where(['event_type IN' => ['reversal', 'refund']])
+            ->all();
+        foreach ($events as $e) {
+            if ((string)$e->event_type === 'reversal') {
+                $reversedCount++;
+                $reversedAmount += -(int)$e->amount;
+            } else {
+                $refundedCount++;
+                $refundedAmount += -(int)$e->amount;
+            }
+        }
 
-        $refunds = $this->tenant()->query('EmsRefunds')->all()->toList();
-        $processed = array_filter($refunds, static fn($r) => (string)$r->status === 'processed');
-        $refundContext = function (EntityInterface $r) use ($invoiceById, $paymentById): array {
-            $inv = $invoiceById[(string)$r->invoice_id] ?? null;
-            $pay = $paymentById[(string)$r->payment_id] ?? null;
+        $withContext = function (array $row) use ($invoiceById, $paymentById): array {
+            $inv = $invoiceById[$row['invoiceId']] ?? null;
+            $pay = $paymentById[$row['paymentId']] ?? null;
 
-            return FeeSerializer::refund($r) + [
+            return $row + [
                 'studentName' => $inv !== null ? (string)$inv->student_name : '—',
                 'invoiceNumber' => $inv !== null ? (string)$inv->invoice_number : '—',
                 'receiptNumber' => $pay !== null ? (string)$pay->receipt_number : '—',
                 'paymentAmount' => $pay !== null ? (int)$pay->amount : 0,
             ];
         };
-        $refundsPending = array_map($refundContext, array_values(array_filter(
-            $refunds,
-            static fn($r) => (string)$r->status === 'pending',
-        )));
-        usort($refundsPending, static fn($a, $b) => strcmp((string)$b['requestedOn'], (string)$a['requestedOn']));
+        $adjustments = $this->adjustments([]);
+        $adjustmentsPending = array_values(array_map(
+            $withContext,
+            array_filter($adjustments, static fn($a) => $a['status'] === 'pending'),
+        ));
+        $payoutsPending = array_values(array_map(
+            $withContext,
+            array_filter($adjustments, static fn($a) => $a['status'] === 'awaiting_payout'),
+        ));
 
-        $sum = static function (array $rows): int {
-            $t = 0;
-            foreach ($rows as $r) {
-                $t += (int)$r->amount;
-            }
-
-            return $t;
-        };
+        $claimIds = $this->tenant()->query('EmsPaymentSubmissions')
+            ->select(['id'])
+            ->all()
+            ->extract('id')
+            ->toList();
+        $decidedClaims = $claimIds === [] ? 0 : $this->tenant()->query('EmsFinanceDecisions')
+            ->where(['request_type' => 'payment_submission', 'request_id IN' => array_map('strval', $claimIds)])
+            ->count();
 
         return [
-            'pending' => $pendingRows,
-            'failed' => $failedRows,
             'completedCount' => count($completed),
-            'completedAmount' => $sum($completed),
-            'pendingAmount' => $sum($pending),
-            'reversedCount' => count(array_filter($payments, static fn($p) => (string)$p->state === 'reversed')),
-            'refundsPending' => $refundsPending,
-            'refundedAmount' => $sum($processed),
-            'refundedCount' => count($processed),
+            'completedAmount' => $completedAmount,
+            'reversedCount' => $reversedCount,
+            'reversedAmount' => $reversedAmount,
+            'refundedCount' => $refundedCount,
+            'refundedAmount' => $refundedAmount,
+            'adjustmentsPending' => $adjustmentsPending,
+            'payoutsPending' => $payoutsPending,
+            'submissionsPending' => count($claimIds) - $decidedClaims,
         ];
     }
 
