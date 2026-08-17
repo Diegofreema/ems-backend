@@ -865,7 +865,7 @@ type PromotionResult = { toSession: string; promoted: number; repeated: number; 
 #### Types
 
 ```ts
-type ImportKind = 'students' | 'guardians'
+type ImportKind = 'students' | 'guardians' | 'staff'
 type RowCheck = 'valid' | 'invalid' | 'duplicate'
 type RowDecision = 'undecided' | 'import' | 'merge' | 'skip'
 type RowOutcome = 'created' | 'merged' | 'skipped' | 'rejected'
@@ -905,8 +905,9 @@ type ImportPreview = { batch: ImportBatch; rows: ImportRow[] }
 File columns (header names normalize case/punctuation to snake_case):
 - **students**: `admission_number?`, `first_name`, `last_name`, `date_of_birth` (YYYY-MM-DD), `gender`, `class_group` (must match an existing class), `status?` (blank = enrolled), `guardian_name`, `guardian_phone`, `enrolled_on?` (blank = today).
 - **guardians**: `student_admission_number`, `first_name`, `last_name`, `relationship`, `phone`, `email?`, `occupation?`, `is_primary?` (yes/no).
+- **staff**: `staff_number?` (blank = next number allocated), `first_name`, `last_name`, `email?`, `phone?`, `gender?` (female/male/other, may be blank), `subjects?` (semicolon-separated subject names, each must already be in the school's subject catalogue), `status?` (blank = active), `hired_on?` (YYYY-MM-DD, blank = today). Writes the **staff directory** (`ems_teachers`), not login accounts — accounts are still invitation-only (§3.18). Duplicate matching is by staff number, then name paired with phone or e-mail; a non-blank `subjects` cell replaces the member's whole subject list on merge (blank leaves it alone).
 
-Validation messages are field-specific plain language (e.g. "Write the date of birth as YYYY-MM-DD, for example 2012-04-09.", "The school has no class called \"X\". Create the class first, or correct the spelling.", "No student on the register has that admission number.", "That does not look like a phone number."). Rows with issues never get duplicate matches (an unreadable row is never also a duplicate question).
+Validation messages are field-specific plain language (e.g. "Write the date of birth as YYYY-MM-DD, for example 2012-04-09.", "The school has no class called \"X\". Create the class first, or correct the spelling.", "The school has no subject called \"X\". Add it to the subject list first, or correct the spelling.", "No student on the register has that admission number.", "That does not look like a phone number."). Rows with issues never get duplicate matches (an unreadable row is never also a duplicate question).
 
 #### Endpoints
 
@@ -918,7 +919,7 @@ Validation messages are field-specific plain language (e.g. "Write the date of b
 | `POST /imports` | `{ kind, filename, text }` | `ImportPreview` | Parses CSV/TSV (quoted fields, `#` comments, blank lines skipped). 422 "That file has no heading row. Start from the template." / "The file is missing these columns: {labels}. Start from the template." / "That file has a heading row but no records under it." Per row: check → issues; duplicate matching against the register AND earlier rows of the same file. Default decisions: valid→import, invalid→skip, duplicate→undecided. **Nothing touches the register on upload.** |
 | `PUT /imports/:batchId/rows/:rowId/decision` | `{ decision, mergeTargetId? }` | `ImportRow` | 409 "This import has already been committed." 422 "A row with errors cannot be imported. Correct the file and upload it again." / "Choose which existing record this row belongs to." / "That match is another row of this same file, which does not exist yet. Skip one of the two rows instead." |
 | `POST /imports/:batchId/skip-flagged` | — | `number` | Skips every undecided duplicate; returns how many. |
-| `POST /imports/:batchId/commit` | — | `ImportPreview` | 422 "{n} row(s) still need a decision before this file can be committed." Then per row: invalid→rejected; skip→skipped; merge→**non-destructive field update** (a blank cell never erases existing data; each real change listed in the outcome note; audit `import.merged` per merged row); import→created (students get the next admission number when blank; guardians attach by admission number, primary handling + contact re-sync as §3.10). Batch → `committed` with the result tally (sums to sourceRowCount). Audit: `import.committed` / `import` with the full tally summary. |
+| `POST /imports/:batchId/commit` | — | `ImportPreview` | 422 "{n} row(s) still need a decision before this file can be committed." Then per row: invalid→rejected; skip→skipped; merge→**non-destructive field update** (a blank cell never erases existing data; each real change listed in the outcome note; audit `import.merged` per merged row); import→created (students get the next admission number when blank; guardians attach by admission number, primary handling + contact re-sync as §3.10; staff get the next staff number when blank, subject names resolve to catalogue ids). Batch → `committed` with the result tally (sums to sourceRowCount). Audit: `import.committed` / `import` with the full tally summary. |
 | `POST /imports/:batchId/discard` | — | `void` | 409 "A committed import cannot be discarded." Batch → `discarded`; **staged rows are deleted** (they hold real names). Audit: `import.discarded`. |
 
 ---

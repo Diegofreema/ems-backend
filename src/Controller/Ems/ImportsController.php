@@ -111,9 +111,16 @@ class ImportsController extends AppController
                 $at = array_search($column['key'], $parsed['header'], true);
                 $values[$column['key']] = $at === false ? '' : trim((string)($raw['cells'][$at] ?? ''));
             }
-            $issues = $kind === 'students' ? $engine->checkStudentRow($values) : $engine->checkGuardianRow($values);
-            $matches = $issues !== [] ? []
-                : ($kind === 'students' ? $engine->studentMatches($values, $earlier) : $engine->guardianMatches($values, $earlier));
+            $issues = match ($kind) {
+                'students' => $engine->checkStudentRow($values),
+                'guardians' => $engine->checkGuardianRow($values),
+                default => $engine->checkStaffRow($values),
+            };
+            $matches = $issues !== [] ? [] : match ($kind) {
+                'students' => $engine->studentMatches($values, $earlier),
+                'guardians' => $engine->guardianMatches($values, $earlier),
+                default => $engine->staffMatches($values, $earlier),
+            };
             $check = $issues !== [] ? 'invalid' : ($matches !== [] ? 'duplicate' : 'valid');
             $decision = $check === 'valid' ? 'import' : ($check === 'invalid' ? 'skip' : 'undecided');
 
@@ -268,7 +275,7 @@ class ImportsController extends AppController
                                 ),
                                 $this->firstReason($row),
                             );
-                        } else {
+                        } elseif ($kind === 'guardians') {
                             $existing = $this->tenant()->query('EmsGuardians')
                                 ->where(['id' => $targetId])->first();
                             if ($existing === null) {
@@ -295,6 +302,34 @@ class ImportsController extends AppController
                                 ),
                                 $this->firstReason($row),
                             );
+                        } else {
+                            $existing = $this->tenant()->query('EmsTeachers')
+                                ->where(['id' => $targetId])->first();
+                            if ($existing === null) {
+                                $this->stampRow($rowsTable, $row, 'rejected', 'The record it was to be merged into no longer exists.');
+                                $result['rejected']++;
+                                continue;
+                            }
+                            $changed = $engine->mergeStaff($existing, $values);
+                            $note = $changed === []
+                                ? sprintf('Matched %s %s; nothing needed changing.', (string)$existing->first_name, (string)$existing->last_name)
+                                : sprintf('Updated %s %s: changed %s.', (string)$existing->first_name, (string)$existing->last_name, implode('; ', $changed));
+                            $this->stampRow($rowsTable, $row, 'merged', $note, (string)$existing->id);
+                            $this->audit()->log(
+                                $this->viewer,
+                                'import.merged',
+                                'teacher',
+                                (string)$existing->id,
+                                sprintf(
+                                    'Merged row %d of %s into %s %s (%s). The existing record was kept and its identifier is unchanged.',
+                                    (int)$row->line_number,
+                                    (string)$batch->filename,
+                                    (string)$existing->first_name,
+                                    (string)$existing->last_name,
+                                    (string)$existing->staff_number,
+                                ),
+                                $this->firstReason($row),
+                            );
                         }
                         $result['merged']++;
                         continue;
@@ -304,7 +339,7 @@ class ImportsController extends AppController
                     if ($kind === 'students') {
                         $student = $engine->createStudent($values);
                         $this->stampRow($rowsTable, $row, 'created', sprintf('Added as %s.', (string)$student->admission_number), (string)$student->id);
-                    } else {
+                    } elseif ($kind === 'guardians') {
                         $guardian = $engine->createGuardian($values);
                         if ($guardian === null) {
                             $this->stampRow($rowsTable, $row, 'rejected', 'The student on this row is no longer on the register.');
@@ -313,6 +348,9 @@ class ImportsController extends AppController
                         }
                         $note = (bool)$guardian->is_primary ? 'Added as the first contact for this student.' : 'Added as an additional contact.';
                         $this->stampRow($rowsTable, $row, 'created', $note, (string)$guardian->id);
+                    } else {
+                        $teacher = $engine->createStaff($values);
+                        $this->stampRow($rowsTable, $row, 'created', sprintf('Added as %s.', (string)$teacher->staff_number), (string)$teacher->id);
                     }
                     $result['created']++;
                 }

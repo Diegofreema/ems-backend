@@ -52,9 +52,25 @@ class Imports
                 ['key' => 'is_primary', 'required' => false, 'hint' => 'yes or no. Only one guardian per student can be the first contact.'],
             ],
         ],
+        'staff' => [
+            'title' => 'Staff',
+            'description' => 'One row per teacher or staff member for the staff directory. This is not login access — invite accounts separately once the directory is in place.',
+            'columns' => [
+                ['key' => 'staff_number', 'required' => false, 'hint' => 'Leave blank and the school allocates the next number.'],
+                ['key' => 'first_name', 'required' => true, 'hint' => 'Given name.'],
+                ['key' => 'last_name', 'required' => true, 'hint' => 'Family name.'],
+                ['key' => 'email', 'required' => false, 'hint' => 'Work e-mail, if the school has it.'],
+                ['key' => 'phone', 'required' => false, 'hint' => 'Any readable format.'],
+                ['key' => 'gender', 'required' => false, 'hint' => 'female, male or other. May be left blank.'],
+                ['key' => 'subjects', 'required' => false, 'hint' => 'Subjects taught, separated by semicolons, for example Mathematics; Physics. Each must already be in the school\'s subject list.'],
+                ['key' => 'status', 'required' => false, 'hint' => 'active or former. Blank means active.'],
+                ['key' => 'hired_on', 'required' => false, 'hint' => 'YYYY-MM-DD. Blank means today.'],
+            ],
+        ],
     ];
 
     private const STUDENT_STATUSES = ['enrolled', 'applicant', 'graduated', 'withdrawn'];
+    private const STAFF_STATUSES = ['active', 'former'];
     private const GENDERS = ['female', 'male', 'other'];
     private const RELATIONSHIPS = ['mother', 'father', 'guardian', 'sibling', 'other'];
 
@@ -87,6 +103,11 @@ class Imports
      * @var array<int, \Cake\Datasource\EntityInterface>|null
      */
     private ?array $classGroupsCache = null;
+
+    /**
+     * @var array<int, \Cake\Datasource\EntityInterface>|null
+     */
+    private ?array $teachersCache = null;
 
     /**
      * @var \App\Ems\Tenant|null
@@ -313,6 +334,57 @@ class Imports
         return $issues;
     }
 
+    /**
+     * @param array<string, string> $values
+     * @return array<int, array{column:string, message:string}>
+     */
+    public function checkStaffRow(array $values): array
+    {
+        $issues = [];
+        $require = function (string $key, string $label) use (&$issues, $values): void {
+            if (($values[$key] ?? '') === '') {
+                $issues[] = ['column' => $key, 'message' => $label . ' is missing.'];
+            }
+        };
+        $require('first_name', 'First name');
+        $require('last_name', 'Last name');
+
+        $gender = (string)($values['gender'] ?? '');
+        if ($gender !== '' && !in_array(mb_strtolower($gender), self::GENDERS, true)) {
+            $issues[] = ['column' => 'gender', 'message' => 'Gender must be female, male or other, or left blank.'];
+        }
+
+        $status = (string)($values['status'] ?? '');
+        if ($status !== '' && !in_array(mb_strtolower($status), self::STAFF_STATUSES, true)) {
+            $issues[] = ['column' => 'status', 'message' => 'Status must be active or former.'];
+        }
+
+        $phone = (string)($values['phone'] ?? '');
+        if ($phone !== '' && strlen(Dedup::phoneKey($phone)) < 7) {
+            $issues[] = ['column' => 'phone', 'message' => 'That does not look like a phone number.'];
+        }
+
+        $email = (string)($values['email'] ?? '');
+        if ($email !== '' && !preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
+            $issues[] = ['column' => 'email', 'message' => 'That does not look like an e-mail address.'];
+        }
+
+        $hiredOn = (string)($values['hired_on'] ?? '');
+        if ($hiredOn !== '' && !self::isRealDate($hiredOn)) {
+            $issues[] = ['column' => 'hired_on', 'message' => 'Write the hire date as YYYY-MM-DD.'];
+        }
+
+        // Subjects must already exist in the school's catalogue — an import never
+        // invents a subject, exactly as a student row never invents a class.
+        foreach ($this->splitSubjects((string)($values['subjects'] ?? '')) as $name) {
+            if (SubjectCatalog::idFor($this->schoolId, $name) === null) {
+                $issues[] = ['column' => 'subjects', 'message' => sprintf('The school has no subject called "%s". Add it to the subject list first, or correct the spelling.', $name)];
+            }
+        }
+
+        return $issues;
+    }
+
     // --- matching ------------------------------------------------------------
 
     /**
@@ -413,6 +485,70 @@ class Imports
                 'targetLabel' => 'Row ' . $r['lineNumber'] . ' of this file · ' . ($v['first_name'] ?? '') . ' ' . ($v['last_name'] ?? ''),
                 'score' => 0.95,
                 'reasons' => ['The same guardian is listed twice in this file'],
+                'withinFile' => true,
+            ];
+        }
+        usort($found, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($found, 0, 3);
+    }
+
+    /**
+     * Staff are a small directory, not a roster, so matching leans on the strong
+     * identifiers a school actually keeps: the staff number, then the name paired
+     * with a phone or e-mail. A held row is only ever a question for the reviewer.
+     *
+     * @param array<string, string> $values
+     * @param array<int, array<string, mixed>> $earlier
+     * @return array<int, array>
+     */
+    public function staffMatches(array $values, array $earlier): array
+    {
+        $rowStaff = Dedup::norm((string)($values['staff_number'] ?? ''));
+        $rowFirst = Dedup::norm((string)($values['first_name'] ?? ''));
+        $rowLast = Dedup::norm((string)($values['last_name'] ?? ''));
+        $rowPhone = Dedup::phoneKey((string)($values['phone'] ?? ''));
+        $rowEmail = mb_strtolower(trim((string)($values['email'] ?? '')));
+
+        $found = [];
+        foreach ($this->teachers() as $t) {
+            $sameStaff = $rowStaff !== '' && $rowStaff === Dedup::norm((string)$t->staff_number);
+            $sameName = $rowFirst === Dedup::norm((string)$t->first_name) && $rowLast === Dedup::norm((string)$t->last_name);
+            $samePhone = $rowPhone !== '' && $rowPhone === Dedup::phoneKey((string)$t->phone);
+            $sameEmail = $rowEmail !== '' && $rowEmail === mb_strtolower(trim((string)$t->email));
+            [$score, $reason] = match (true) {
+                $sameStaff => [1.0, 'Same staff number'],
+                $sameName && $samePhone => [0.95, 'Same name and phone number'],
+                $sameName && $sameEmail => [0.9, 'Same name and e-mail'],
+                $sameName => [0.8, 'Same name'],
+                $sameEmail => [0.7, 'Same e-mail'],
+                $samePhone => [0.6, 'Same phone number'],
+                default => [0.0, ''],
+            };
+            if ($score === 0.0) {
+                continue;
+            }
+            $found[] = [
+                'targetId' => (string)$t->id,
+                'targetLabel' => trim((string)$t->first_name . ' ' . (string)$t->last_name) . ' · ' . (string)$t->staff_number . ' · ' . (string)$t->status,
+                'score' => $score,
+                'reasons' => [$reason],
+                'withinFile' => false,
+            ];
+        }
+        foreach ($earlier as $r) {
+            $v = $r['values'];
+            $sameStaff = $rowStaff !== '' && $rowStaff === Dedup::norm((string)($v['staff_number'] ?? ''));
+            $sameName = $rowFirst === Dedup::norm((string)($v['first_name'] ?? ''))
+                && $rowLast === Dedup::norm((string)($v['last_name'] ?? ''));
+            if (!$sameStaff && !$sameName) {
+                continue;
+            }
+            $found[] = [
+                'targetId' => 'row:' . $r['lineNumber'],
+                'targetLabel' => 'Row ' . $r['lineNumber'] . ' of this file · ' . ($v['first_name'] ?? '') . ' ' . ($v['last_name'] ?? ''),
+                'score' => $sameStaff ? 1.0 : 0.9,
+                'reasons' => [$sameStaff ? 'The same staff number appears earlier in this file' : 'The same staff member is listed twice in this file'],
                 'withinFile' => true,
             ];
         }
@@ -589,6 +725,149 @@ class Imports
         $students->saveOrFail($student);
     }
 
+    // --- staff writing -------------------------------------------------------
+
+    /**
+     * The next staff number when a row leaves it blank — the prefix of the first
+     * existing number with its trailing digits incremented, or STF/001 for the
+     * first staff member. createStaff clears the cache so a file of blanks never
+     * hands out the same number twice.
+     */
+    public function nextStaffNumber(): string
+    {
+        $existing = array_map(fn($t) => (string)$t->staff_number, $this->teachers());
+        $prefix = 'STF/';
+        foreach ($existing as $number) {
+            $stripped = preg_replace('/\d+\s*$/', '', $number);
+            if ($stripped !== null && $stripped !== '') {
+                $prefix = $stripped;
+                break;
+            }
+        }
+        $highest = 0;
+        foreach ($existing as $number) {
+            if (preg_match('/(\d+)\s*$/', $number, $m) && (int)$m[1] > $highest) {
+                $highest = (int)$m[1];
+            }
+        }
+
+        return $prefix . str_pad((string)($highest + 1), 3, '0', STR_PAD_LEFT);
+    }
+
+    /** @param array<string, string> $values */
+    public function createStaff(array $values): EntityInterface
+    {
+        $teachers = $this->locator->get('EmsTeachers');
+        $staffNumber = ($values['staff_number'] ?? '') !== '' ? $values['staff_number'] : $this->nextStaffNumber();
+        $teacher = $teachers->newEntity([
+            'school_id' => $this->schoolId,
+            'staff_number' => $staffNumber,
+            'first_name' => $values['first_name'] ?? '',
+            'last_name' => $values['last_name'] ?? '',
+            'email' => $values['email'] ?? '',
+            'phone' => $values['phone'] ?? '',
+            'gender' => mb_strtolower((string)($values['gender'] ?? '')),
+            'subjects' => $this->resolveSubjectIds((string)($values['subjects'] ?? '')),
+            'status' => ($values['status'] ?? '') === '' ? 'active' : mb_strtolower((string)$values['status']),
+            'hired_on' => ($values['hired_on'] ?? '') === '' ? $this->today : $values['hired_on'],
+        ], ['validate' => false]);
+        $teachers->saveOrFail($teacher);
+        $this->teachersCache = null;
+
+        return $teacher;
+    }
+
+    /**
+     * Non-destructive field update — a blank cell never erases existing data. A
+     * non-empty subjects cell replaces the whole list (the file states the full
+     * set of subjects for that member); a blank one leaves the subjects alone.
+     *
+     * @param array<string, string> $values
+     * @return array<int, string>
+     */
+    public function mergeStaff(EntityInterface $existing, array $values): array
+    {
+        $changed = [];
+        $apply = function (string $col, string $incoming, string $label) use (&$changed, $existing): void {
+            if ($incoming === '' || (string)$existing->$col === $incoming) {
+                return;
+            }
+            $changed[] = $label . ' ' . (string)$existing->$col . ' to ' . $incoming;
+            $existing->$col = $incoming;
+        };
+        $apply('first_name', (string)($values['first_name'] ?? ''), 'first name');
+        $apply('last_name', (string)($values['last_name'] ?? ''), 'last name');
+        $apply('email', (string)($values['email'] ?? ''), 'e-mail');
+        $apply('phone', (string)($values['phone'] ?? ''), 'phone');
+        if (($values['staff_number'] ?? '') !== '') {
+            $apply('staff_number', (string)$values['staff_number'], 'staff number');
+        }
+        if (($values['gender'] ?? '') !== '') {
+            $apply('gender', mb_strtolower((string)$values['gender']), 'gender');
+        }
+        if (($values['status'] ?? '') !== '') {
+            $apply('status', mb_strtolower((string)$values['status']), 'status');
+        }
+        if (($values['hired_on'] ?? '') !== '') {
+            $current = (string)Serializer\Wire::date($existing->hired_on);
+            if ($current !== (string)$values['hired_on']) {
+                $changed[] = 'hire date ' . $current . ' to ' . (string)$values['hired_on'];
+                $existing->hired_on = $values['hired_on'];
+            }
+        }
+        $subjectsCell = (string)($values['subjects'] ?? '');
+        if ($subjectsCell !== '') {
+            $newIds = $this->resolveSubjectIds($subjectsCell);
+            $currentIds = array_values(array_map('strval', (array)($existing->subjects ?? [])));
+            if ($newIds !== $currentIds) {
+                $before = $this->subjectNames($currentIds);
+                $after = $this->subjectNames($newIds);
+                $changed[] = 'subjects ' . ($before === '' ? 'none' : $before) . ' to ' . ($after === '' ? 'none' : $after);
+                $existing->subjects = $newIds;
+            }
+        }
+        $this->locator->get('EmsTeachers')->saveOrFail($existing);
+        $this->teachersCache = null;
+
+        return $changed;
+    }
+
+    /**
+     * Resolve a semicolon-separated subjects cell to catalogue ids, de-duplicated
+     * and preserving order. Unknown names are dropped here — checkStaffRow has
+     * already flagged them, so a committed row only carries subjects that exist.
+     *
+     * @return array<int, string>
+     */
+    private function resolveSubjectIds(string $cell): array
+    {
+        $ids = [];
+        foreach ($this->splitSubjects($cell) as $name) {
+            $id = SubjectCatalog::idFor($this->schoolId, $name);
+            if ($id !== null && !in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /** @return array<int, string> */
+    private function splitSubjects(string $cell): array
+    {
+        $parts = preg_split('/\s*;\s*/', trim($cell)) ?: [];
+
+        return array_values(array_filter(array_map('trim', $parts), fn($s) => $s !== ''));
+    }
+
+    /** @param array<int, string> $ids */
+    private function subjectNames(array $ids): string
+    {
+        $names = array_filter(array_map(fn($id) => SubjectCatalog::name($this->schoolId, $id), $ids), fn($n) => $n !== '');
+
+        return implode(', ', $names);
+    }
+
     // --- small data helpers --------------------------------------------------
 
     /** @param array<int, string> $known */
@@ -648,6 +927,19 @@ class Imports
     private function classGroups(): array
     {
         return $this->classGroupsCache ??= $this->tenant()->query('EmsClassGroups')
+            ->all()->toList();
+    }
+
+    /**
+     * The staff directory, loaded once and reused for the whole file — matching
+     * scores every staged row against it. createStaff/mergeStaff clear it so a
+     * later nextStaffNumber sees rows created earlier in the same commit.
+     *
+     * @return array<int, \Cake\Datasource\EntityInterface>
+     */
+    private function teachers(): array
+    {
+        return $this->teachersCache ??= $this->tenant()->query('EmsTeachers')
             ->all()->toList();
     }
 }
