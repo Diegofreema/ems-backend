@@ -352,8 +352,8 @@ Every non-retired POST below requires the `Idempotency-Key` header (Secure finan
 
 | Endpoint | Request | Response | Behavior |
 |---|---|---|---|
-| `POST /invoice-batches/preview` | `{ feePlanVersionId, classGroups?, schedule?, dueDate? }` | `BatchPreview` — `{ classGroups, schedule, toIssue: {studentId, studentName, total, awarded, instalments, dueOn}[], skipped: {studentId, studentName, reason}[], issueCount, skipCount, studentCount, totalAmount }` | FINANCE dry run. Resolves the ENROLLED roster in the chosen class groups (default: every class group at the plan's level), prices each against its awards, and splits by the template. No write, no Idempotency-Key. |
-| `POST /invoice-batches` | `{ feePlanVersionId, classGroups?, schedule?, dueDate? }` | `InvoiceBatch` (201, `pending`) | **Bursar drafts.** Plan must be approved. Percentage shares must total 100 (else 422 "The instalments come to N% of the bill…"); a share ≤ 0 → 422; give a template or a `dueDate`, not neither (422). ≥ 1 class group (422). 422 if nothing would issue (everyone already invoiced). Stores criteria only — the echoed `preview` is advisory. Audit `invoice_batch.requested`. |
+| `POST /invoice-batches/preview` | `{ feePlanVersionId, classGroupIds?, classGroups?, schedule?, dueDate? }` | `BatchPreview` — `{ classGroupIds, classGroups, schedule, toIssue: {studentId, studentName, total, awarded, instalments, dueOn}[], skipped: {studentId, studentName, reason}[], issueCount, skipCount, studentCount, totalAmount }` | FINANCE dry run. Prefer `classGroupIds` (each arm billed on its own id, from the class dropdown); the legacy `classGroups` name list is still accepted (resolution stays name-based, billing every arm carrying the name). Default: every class at the plan's level. Prices each student against its awards and splits by the template. No write, no Idempotency-Key. |
+| `POST /invoice-batches` | `{ feePlanVersionId, classGroupIds?, classGroups?, schedule?, dueDate? }` | `InvoiceBatch` (201, `pending`) | **Bursar drafts.** Plan must be approved. Percentage shares must total 100 (else 422 "The instalments come to N% of the bill…"); a share ≤ 0 → 422; give a template or a `dueDate`, not neither (422). ≥ 1 class (422). 422 if nothing would issue (everyone already invoiced). Stores criteria only (both the class ids it bills and the name snapshot) — the echoed `preview` is advisory. Audit `invoice_batch.requested`. |
 | `GET /invoice-batches` | — | `{ items: InvoiceBatch[], … }` | Newest first with derived status (`pending`/`approved`/`rejected`); an approved batch carries `issueCount`/`skipCount`. |
 | `GET /invoice-batches/:id` | — | `InvoiceBatch` | A pending batch carries a FRESH `preview` (recomputed now); a decided batch carries `rows[]` (per student: the issued invoice's number/total, or the skip reason). |
 | `POST /invoice-batches/:id/decision` | `{ decision, reason }` | `InvoiceBatch` | **Admin decides; drafter refused (403); one decision only (409).** Approval RECOMPUTES the roster and prices fresh (issue-time authoritative), then issues every invoice in ONE transaction — all-or-nothing. Anyone already carrying a live invoice from the plan is skipped and recorded, never double-billed. Audit `invoice_batch.approved`/`invoice_batch.rejected`. |
@@ -506,13 +506,16 @@ type Student = {
   firstName: string; lastName: string
   dateOfBirth: string              // YYYY-MM-DD
   gender: StudentGender
-  classGroup: string               // e.g. "JSS 1A"
+  classId: string | null           // canonical class link (a class is identified by id, not name)
+  classGroup: string               // denormalized class name mirror, e.g. "JSS 1A"
   status: StudentStatus
   guardianName: string             // denormalized mirror of the primary guardian
   guardianPhone: string
   enrolledOn: string
 }
-type StudentInput = Omit<Student, 'id' | 'schoolId'>
+// Writes carry `classGroupId` (the canonical link). The legacy `classGroup` name
+// is still accepted and resolved to an id where it matches a class.
+type StudentInput = Omit<Student, 'id' | 'schoolId' | 'classId'> & { classGroupId?: string }
 
 type GuardianRelationship = 'mother' | 'father' | 'guardian' | 'sibling' | 'other'
 type Guardian = {
@@ -567,7 +570,7 @@ type Enrolment = {                  // per-session placement history
 | `POST /students/admit` | `{ student: Omit<StudentInput, 'guardianName' \| 'guardianPhone'>; guardians: GuardianInput[] }` | `Student` | Requires at least one guardian. Creates the student, every guardian, the primary contact mirror, and the current-session enrolment in one transaction. Any failed save rolls the entire admission back. |
 | `PUT /students/:id` | `StudentInput` | `Student` | Full merge-replace. 404 as above. |
 | `DELETE /students/:id` | — | `void` | **Always refused (409** "A student's record cannot be deleted. Withdraw the student instead, or merge duplicates."**)** — a student's record is regulated data a school can never hard-delete, dependents or not. Use `POST /students/:id/withdraw` (archival) or merge (the only path that removes a duplicate). |
-| `POST /students/:id/class` | `{ classGroup }` | `Student` | Updates the live placement only. |
+| `POST /students/:id/class` | `{ classGroupId }` | `Student` | Updates the live placement only. Prefers `classGroupId` (422 "That class could not be found." if unknown); the legacy `{ classGroup }` name is still accepted and resolved to an id where it matches. |
 | `GET /students/:id/guardians` | — | `Guardian[]` | Student access. Primary first, then firstName asc. |
 | `POST /students/:id/guardians` | `GuardianInput` | `Guardian` | First guardian is always primary; an explicit primary demotes the others. **Always re-sync** the student's denormalized guardianName/guardianPhone from the primary. |
 | `PUT /guardians/:id` | `GuardianInput` | `Guardian` | 404 "That guardian could not be found." Primary demotion + re-sync as above. |
@@ -621,9 +624,9 @@ type TeacherInput = Omit<Teacher, 'id' | 'schoolId'>
 ```ts
 type ClassGroup = {
   id: string; schoolId: string
-  name: string                     // "JSS 1A"
-  level: string                    // "JSS 1"
-  stream: string                   // "A"
+  name: string                     // "JSS 1A" (level + arm); NOT unique — identity is `id`
+  level: string                    // "JSS 1" (admin-defined)
+  stream: string                   // arm letter, "A"
   formTeacherId: string | null
   capacity: number
 }
@@ -670,9 +673,13 @@ type DayScheduleItem = { period: number; start: string; end: string; subject: st
 
 | Endpoint | Request | Response | Behavior |
 |---|---|---|---|
-| `GET /classes` | `page`, `pageSize`, `query`, `level \| 'all'`, `sort: 'name' \| 'size'` | `Paginated<ClassSummary>` | **Viewer-scoped before pagination** (a teacher sees only their classes). `size` = studentCount desc. Roster counts enrolled students matched by class *name*. |
+| `GET /classes` | `page`, `pageSize`, `query`, `level \| 'all'`, `sort: 'name' \| 'size'` | `Paginated<ClassSummary>` | **Viewer-scoped before pagination** (a teacher sees only their classes). `size` = studentCount desc. `studentCount` counts enrolled students matched by class **id** (a legacy name fallback covers students not yet linked to an id). |
 | `GET /classes/:id` | — | `ClassSummary` | 404 "That class could not be found." |
-| `GET /classes/levels` | — | `string[]` | Distinct levels, sorted. |
+| `GET /classes/levels` | — | `string[]` | Distinct levels, sorted. Admin-defined; a level dropdown offers these plus type-to-add-new. |
+| `GET /classes/options` | — | `ClassSummary[]` | Viewer-scoped, unpaginated, sorted by level then name. Backs the student/teacher class-assignment dropdowns — a duplicate arm is a distinct, selectable option (its own `id`). |
+| `POST /classes` | `{ level, stream, name?, formTeacherId?, capacity? }` | `ClassSummary` (201) | **MANAGE.** `level` required (422 "Choose the class's level."). `name` is composed from `level`+`stream` when omitted (so "JSS 1"+"A" → "JSS 1A"); if both `name` and `stream` are omitted → 422 "Enter the class arm…". Duplicate names are **allowed** (a second "A" in a level). Audit `class.created`. |
+| `PUT /classes/:id` | `{ name?, level?, stream?, formTeacherId?, capacity? }` | `ClassSummary` | **MANAGE.** A rename refreshes the denormalized class name on students linked to this class by id. Audit `class.renamed`. |
+| `DELETE /classes/:id` | — | `void` (204) | **MANAGE.** 409 "That class has students or academic history…" if any student links to it (by id, or a legacy name match) or it is referenced by grades/assessments/registers/allocations/slots. |
 | `GET /classes/:id/roster` | — | `Student[]` | Enrolled only, "lastName firstName" asc. |
 | `GET /classes/:id/allocations` | — | `AllocationView[]` | Sorted by subject. |
 | `GET /classes/:id/timetable` | — | `TimetableSlotView[]` | — |

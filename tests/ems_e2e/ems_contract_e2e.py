@@ -1305,7 +1305,10 @@ sect("class-crud")
 st, h, cg = req("POST", f"{S}/classes", token=admin_token, body={"name": "JSS 3Z", "level": "JSS 3", "capacity": 25})
 check("class create 201", st == 201 and cg.get("name") == "JSS 3Z")
 cgz = cg["id"]
-check("duplicate class -> 422", req("POST", f"{S}/classes", token=admin_token, body={"name": "jss 3z", "level": "JSS 3"})[0] == 422)
+# A level may hold a second arm with the same name — identity is the class id, not the name.
+st, h, dup = req("POST", f"{S}/classes", token=admin_token, body={"name": "JSS 3Z", "level": "JSS 3"})
+check("duplicate arm allowed -> 201, distinct id", st == 201 and dup.get("id") and dup["id"] != cgz)
+req("DELETE", f"{S}/classes/{dup['id']}", token=admin_token)
 st, h, ren = req("PUT", f"{S}/classes/{cgz}", token=admin_token, body={"name": "JSS 3 Omega"})
 check("class rename 200", st == 200 and ren.get("name") == "JSS 3 Omega")
 check("teacher cannot create class -> 403",

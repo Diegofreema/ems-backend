@@ -106,6 +106,7 @@ final class Policy
 
         // --- Classes, timetable & registers (§3.12) ---
         'Classes.levels' => 'ALL',
+        'Classes.options' => 'ALL',
         'Classes.index' => 'ALL',
         'Classes.view' => 'ALL',
         'Classes.roster' => 'ALL',
