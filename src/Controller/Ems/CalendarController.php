@@ -5,7 +5,7 @@ namespace App\Controller\Ems;
 
 use App\Ems\Messages;
 use App\Ems\Serializer\CalendarSerializer;
-use Cake\Chronos\ChronosInterface;
+use Cake\Chronos\ChronosDate;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
@@ -384,10 +384,10 @@ class CalendarController extends AppController
 
     private function assertInsideSession(EntityInterface $session, string $startsOn, string $endsOn): void
     {
-        $sessionStart = $session->starts_on instanceof ChronosInterface
+        $sessionStart = $session->starts_on instanceof ChronosDate
             ? $session->starts_on->format('Y-m-d')
             : (string)$session->starts_on;
-        $sessionEnd = $session->ends_on instanceof ChronosInterface
+        $sessionEnd = $session->ends_on instanceof ChronosDate
             ? $session->ends_on->format('Y-m-d')
             : (string)$session->ends_on;
 
