@@ -47,6 +47,23 @@ final class Messages
     public const SCHOOL_NOT_FOUND = 'That school could not be found.';
     public const RATE_LIMITED = 'Too many attempts. Please wait a moment and try again.';
 
+    // --- Account & security (§3.18, self-service) -------------------------
+    public const PROFILE_NAME_REQUIRED = 'Your account needs a name.';
+    public const AVATAR_INVALID = 'That image could not be read. Use a PNG, JPG or SVG under 512 KB.';
+    public const AVATAR_TOO_LARGE = 'That image is over 512 KB — please use a smaller one.';
+    public const PHONE_INVALID = 'Enter a valid phone number, or leave it blank.';
+    public const CURRENT_PASSWORD_WRONG = 'Your current password is not correct.';
+    public const PASSWORD_SAME_AS_OLD = 'Choose a password different from your current one.';
+    public const EMAIL_CHANGE_SAME = 'That is already your e-mail address.';
+    public const EMAIL_CHANGE_LINK_INVALID = 'That confirmation link is not valid any more. Request the e-mail change again.';
+    public const TWO_FACTOR_ALREADY_ON = 'Two-step verification is already on for this account.';
+    public const TWO_FACTOR_NOT_PENDING = 'Start enabling two-step verification first, then enter the code we e-mail you.';
+    public const TWO_FACTOR_CODE_INVALID = 'That code is not correct. Check the latest e-mail and try again.';
+    public const TWO_FACTOR_ALREADY_OFF = 'Two-step verification is already off for this account.';
+    public const TWO_FACTOR_CHALLENGE_INVALID = 'That sign-in code is not valid any more. Sign in again to get a new one.';
+    public const DEVICE_SESSION_NOT_FOUND = 'That session could not be found.';
+    public const EMAIL_SEND_FAILED = 'We could not send that e-mail just now. Please try again in a moment.';
+
     // --- Students & guardians (§3.10) ------------------------------------
     public const STUDENT_NOT_FOUND = 'That student record could not be found.';
     public const GUARDIAN_NOT_FOUND = 'That guardian could not be found.';

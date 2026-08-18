@@ -61,11 +61,15 @@ final class ViewerResolver
             throw ViewerDenied::schoolForbidden();
         }
 
+        // `sid` (session/family id) is NOT authorization — it only records which
+        // sign-in session this token belongs to, so the Account surface can mark
+        // "this device". Trusted for identity of the session alone, like `sub`.
         return new Viewer(
             $liveSchoolId,
             $userId,
             (string)$row->role,
             (string)$row->name,
+            (string)($claims['sid'] ?? ''),
         );
     }
 }

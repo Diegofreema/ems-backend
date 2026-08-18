@@ -32,12 +32,26 @@ final class Viewer
      */
     public string $name;
 
-    public function __construct(string $schoolId, string $userId, string $role, string $name)
-    {
+    /**
+     * @var string The current sign-in session's token-family id, carried in the
+     *   access token's `sid` claim (stable across token rotation). Empty for a
+     *   token minted before sessions were tracked. Used by the Account surface to
+     *   mark and preserve "this device" among the active sessions.
+     */
+    public string $sessionId;
+
+    public function __construct(
+        string $schoolId,
+        string $userId,
+        string $role,
+        string $name,
+        string $sessionId = '',
+    ) {
         $this->schoolId = $schoolId;
         $this->userId = $userId;
         $this->role = $role;
         $this->name = $name;
+        $this->sessionId = $sessionId;
     }
 
     /**

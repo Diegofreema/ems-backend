@@ -5,8 +5,10 @@ namespace App\Controller\Ems;
 
 use App\Api\Jwt;
 use App\Ems\Email;
+use App\Ems\EmailChanges;
 use App\Ems\EmailVerifications;
 use App\Ems\Invitations;
+use App\Ems\LoginChallenges;
 use App\Ems\Messages;
 use App\Ems\RateLimited;
 use App\Ems\RateLimiter;
@@ -15,6 +17,7 @@ use App\Ems\RefreshTokens;
 use App\Ems\Resend;
 use App\Ems\Serializer\SettingsSerializer;
 use App\Ems\SubjectCatalog;
+use App\Ems\TrustedDevices;
 use Cake\Core\Configure;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Cookie\Cookie;
@@ -39,9 +42,9 @@ use Throwable;
 class AuthController extends AppController
 {
     protected array $publicActions = [
-        'signIn', 'registerSchool', 'inviteLookup', 'inviteAccept',
+        'signIn', 'signInVerify', 'registerSchool', 'inviteLookup', 'inviteAccept',
         'resetRequest', 'resetConfirm', 'refresh', 'logout',
-        'verifyEmail', 'verifyResend',
+        'verifyEmail', 'verifyResend', 'emailChangeVerify',
     ];
 
     /** Verification e-mails allowed per address per window (register + resends
@@ -70,6 +73,10 @@ class AuthController extends AppController
     /** The httpOnly refresh cookie's name and path (scoped to the auth endpoints). */
     private const REFRESH_COOKIE = 'ems_refresh';
     private const REFRESH_COOKIE_PATH = '/api/ems/auth';
+
+    /** The httpOnly "remember this device" cookie for 2FA — same path/attrs as
+     *  the refresh cookie, but deliberately outlives logout (30-day trust). */
+    private const DEVICE_COOKIE = 'ems_device';
 
     /**
      * POST /auth/sign-in { email, password }
@@ -120,7 +127,106 @@ class AuthController extends AppController
             $this->fail(403, Messages::EMAIL_UNVERIFIED);
         }
 
+        // Second factor: a 2FA account on an UNtrusted device does not get a
+        // session yet — it gets a mailed code and a challenge to redeem at
+        // /auth/sign-in/verify. A device the user chose to remember (a live
+        // trust cookie) skips straight through.
+        if ($user->two_factor_enabled && !$this->deviceIsTrusted($user)) {
+            $issued = LoginChallenges::issue($this->fetchTable('EmsLoginChallenges'), (string)$user->id);
+            $this->sendLoginCode($user, $issued['code']);
+
+            return $this->json([
+                'twoFactorRequired' => true,
+                'challengeId' => $issued['challengeId'],
+                'email' => $this->maskEmail((string)$user->email),
+            ]);
+        }
+
         return $this->authResult($user);
+    }
+
+    /**
+     * POST /auth/sign-in/verify { challengeId, code, rememberDevice? } — finish a
+     * 2FA sign-in by redeeming the mailed code for a session. `rememberDevice`
+     * sets a 30-day trust cookie so this browser can skip the code next time.
+     */
+    public function signInVerify(): Response
+    {
+        $this->rateLimit('signin_verify', 10);
+        $body = $this->body();
+        $challengeId = trim((string)($body['challengeId'] ?? ''));
+        $code = trim((string)($body['code'] ?? ''));
+
+        $userId = LoginChallenges::verify($this->fetchTable('EmsLoginChallenges'), $challengeId, $code);
+        if ($userId === null) {
+            $this->fail(400, Messages::TWO_FACTOR_CHALLENGE_INVALID);
+        }
+
+        // Re-read live account state: the challenge is only a factor, never
+        // authority — a since-disabled or since-unverified account cannot pass.
+        $user = $this->fetchTable('EmsUsers')->find()->where(['id' => $userId])->first();
+        if ($user === null || $user->status !== 'active' || $user->email_verified_at === null) {
+            $this->fail(400, Messages::TWO_FACTOR_CHALLENGE_INVALID);
+        }
+
+        $response = $this->authResult($user);
+        if (!empty($body['rememberDevice'])) {
+            $meta = $this->deviceMeta();
+            $device = TrustedDevices::issue(
+                $this->fetchTable('EmsTrustedDevices'),
+                (string)$user->id,
+                $meta['userAgent'],
+                time(),
+            );
+            $response = $response->withCookie($this->deviceCookie($device['token'], $device['expiresAt']));
+        }
+
+        return $response;
+    }
+
+    /**
+     * POST /auth/email-change/verify { token } — confirm a login-e-mail change
+     * from the link mailed to the NEW address. Swaps the address and marks it
+     * verified (the link IS the proof). Starts no session; the user's existing
+     * sessions continue, and a logged-out opener is sent to sign in.
+     */
+    public function emailChangeVerify(): Response
+    {
+        $this->rateLimit('email_change_verify', 10);
+        $token = trim((string)($this->body()['token'] ?? ''));
+        if ($token === '') {
+            $this->fail(400, Messages::EMAIL_CHANGE_LINK_INVALID);
+        }
+
+        $changes = $this->fetchTable('EmsEmailChanges');
+        $row = $changes->find()
+            ->where(['token' => EmailChanges::hash($token), 'used_at IS' => null, 'expires_at >=' => FrozenTime::now()])
+            ->first();
+        if ($row === null) {
+            $this->fail(400, Messages::EMAIL_CHANGE_LINK_INVALID);
+        }
+
+        $users = $this->fetchTable('EmsUsers');
+        $user = $users->find()->where(['id' => $row->user_id])->first();
+        if ($user === null || $user->status === 'disabled') {
+            $this->fail(400, Messages::EMAIL_CHANGE_LINK_INVALID);
+        }
+
+        $newEmail = strtolower((string)$row->new_email);
+        // The address may have been claimed by someone else since the request.
+        if ($users->exists(['LOWER(email)' => $newEmail, 'id !=' => $user->id])) {
+            $this->fail(422, Messages::EMAIL_EXISTS);
+        }
+
+        $users->getConnection()->transactional(function () use ($users, $changes, $user, $row, $newEmail): void {
+            $row->used_at = FrozenTime::now(); // single-use: the link is burned
+            $changes->saveOrFail($row);
+            $user->email = $newEmail;
+            $user->email_verified_at = $user->email_verified_at ?? FrozenTime::now();
+            $users->saveOrFail($user);
+        });
+
+        return $this->json(['changed' => true, 'email' => $newEmail]);
     }
 
     /**
@@ -561,7 +667,7 @@ class AuthController extends AppController
         return $this->json([
             'user' => SettingsSerializer::user($user),
             'school' => SettingsSerializer::school($school),
-            'token' => $this->accessToken($user),
+            'token' => $this->accessToken($user, (string)$rotated['familyId']),
         ])->withCookie($this->refreshCookie($rotated['token'], $rotated['expiresAt']));
     }
 
@@ -591,15 +697,33 @@ class AuthController extends AppController
     {
         $school = $this->fetchTable('EmsSchools')->get($user->school_id);
 
+        // The session's family id becomes the access token's `sid` claim, so the
+        // Account surface can mark and preserve "this device" without ever seeing
+        // the path-scoped refresh cookie. inviteLookup starts no session → no sid.
+        $familyId = '';
+        $refreshCookie = null;
+        if ($withRefresh) {
+            $meta = $this->deviceMeta();
+            $issued = RefreshTokens::issue(
+                $this->fetchTable('EmsRefreshTokens'),
+                (string)$user->id,
+                time(),
+                null,
+                $meta['userAgent'],
+                $meta['ip'],
+            );
+            $familyId = $issued['familyId'];
+            $refreshCookie = $this->refreshCookie($issued['token'], $issued['expiresAt']);
+        }
+
         $response = $this->json([
             'user' => SettingsSerializer::user($user),
             'school' => SettingsSerializer::school($school),
-            'token' => $this->accessToken($user),
+            'token' => $this->accessToken($user, $familyId),
         ]);
 
-        if ($withRefresh) {
-            $issued = RefreshTokens::issue($this->fetchTable('EmsRefreshTokens'), (string)$user->id, time());
-            $response = $response->withCookie($this->refreshCookie($issued['token'], $issued['expiresAt']));
+        if ($refreshCookie !== null) {
+            $response = $response->withCookie($refreshCookie);
         }
 
         return $response;
@@ -615,12 +739,21 @@ class AuthController extends AppController
      * so role/school/name are neither needed here nor safe to expose in a
      * client-readable token.
      */
-    private function accessToken(EntityInterface $user): string
+    private function accessToken(EntityInterface $user, string $familyId = ''): string
     {
-        return Jwt::encode([
+        $claims = [
             'type' => 'ems',
             'sub' => (string)$user->id,
-        ], null, time());
+        ];
+        // `sid` names the sign-in session (its refresh-token family), stable
+        // across rotation, so the Account surface knows which device is "this
+        // one". Identity-only, never authorization (which is read live per
+        // request from the ems_users row).
+        if ($familyId !== '') {
+            $claims['sid'] = $familyId;
+        }
+
+        return Jwt::encode($claims, null, time());
     }
 
     /**
@@ -643,6 +776,75 @@ class AuthController extends AppController
     private function clearRefreshCookie(Response $response): Response
     {
         return $response->withExpiredCookie($this->refreshCookie('', 1));
+    }
+
+    /**
+     * The "remember this device" cookie: same httpOnly/Secure/SameSite=None/path
+     * as the refresh cookie so it is sent on sign-in, but a 30-day life that
+     * deliberately OUTLIVES logout — the whole point of a trusted device.
+     */
+    private function deviceCookie(string $value, int $expiresAt): Cookie
+    {
+        return (new Cookie(self::DEVICE_COOKIE, $value))
+            ->withPath(self::REFRESH_COOKIE_PATH)
+            ->withExpiry(FrozenTime::createFromTimestamp($expiresAt))
+            ->withHttpOnly(true)
+            ->withSecure((bool)Configure::read('Ems.cookieSecure', true))
+            ->withSameSite('None');
+    }
+
+    /** Does the request carry a live 2FA trust cookie for this account? */
+    private function deviceIsTrusted(EntityInterface $user): bool
+    {
+        $token = (string)$this->request->getCookie(self::DEVICE_COOKIE);
+
+        return $token !== '' && TrustedDevices::isTrusted(
+            $this->fetchTable('EmsTrustedDevices'),
+            $token,
+            (string)$user->id,
+            time(),
+        );
+    }
+
+    /** The device metadata captured for a new session's refresh token / trust. */
+    private function deviceMeta(): array
+    {
+        $userAgent = trim((string)$this->request->getHeaderLine('User-Agent'));
+
+        return [
+            'userAgent' => $userAgent !== '' ? $userAgent : null,
+            'ip' => $this->clientIp(),
+        ];
+    }
+
+    /** Mail a 2FA sign-in code, best-effort: a retry of sign-in simply re-sends. */
+    private function sendLoginCode(EntityInterface $user, string $code): void
+    {
+        try {
+            $school = $this->fetchTable('EmsSchools')->get($user->school_id);
+            $message = Email::loginCode((string)$school->name, (string)$user->name, $code);
+            Resend::deliver(
+                (string)$user->email,
+                sprintf('Your %s EMS sign-in code', (string)$school->name),
+                $message['text'],
+                $message['html'],
+            );
+        } catch (Throwable $e) {
+            Log::error(sprintf('EMS 2FA code delivery failed for user %s: %s', (string)$user->id, $e->getMessage()));
+        }
+    }
+
+    /** A privacy-preserving hint of where a code was sent: `j•••@school.com`. */
+    private function maskEmail(string $email): string
+    {
+        $at = strpos($email, '@');
+        if ($at === false || $at < 1) {
+            return $email;
+        }
+
+        return substr($email, 0, 1)
+            . str_repeat('•', max(1, min(6, $at - 1)))
+            . substr($email, $at);
     }
 
     /**

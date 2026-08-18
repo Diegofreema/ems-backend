@@ -53,6 +53,19 @@ class PolicyTest extends TestCase
         'Documents.verify',
         'Documents.link',
         'Documents.remove',
+        // Account & security (§3.18): every self-service write acts ONLY on the
+        // viewer's own account (the action reads the viewer, never a body id), so
+        // there is no shared row for a family role to reach — the whole point of
+        // the SELF tier.
+        'Account.updateProfile',
+        'Account.changePassword',
+        'Account.requestEmailChange',
+        'Account.enableTwoFactor',
+        'Account.confirmTwoFactor',
+        'Account.disableTwoFactor',
+        'Account.revokeSession',
+        'Account.revokeOtherSessions',
+        'Account.forgetTrustedDevices',
     ];
 
     /**

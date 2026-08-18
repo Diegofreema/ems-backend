@@ -333,6 +333,20 @@ final class Policy
         'Communication.view' => 'ALL',
         'Communication.myPreferences' => 'SELF',
         'Communication.setPreference' => 'SELF',
+
+        // --- Account & security (§3.18) — every member acts on their OWN
+        // account; the action reads the viewer, never a body-supplied id. ---
+        'Account.show' => 'SELF',
+        'Account.updateProfile' => 'SELF',
+        'Account.changePassword' => 'SELF',
+        'Account.requestEmailChange' => 'SELF',
+        'Account.enableTwoFactor' => 'SELF',
+        'Account.confirmTwoFactor' => 'SELF',
+        'Account.disableTwoFactor' => 'SELF',
+        'Account.sessions' => 'SELF',
+        'Account.revokeSession' => 'SELF',
+        'Account.revokeOtherSessions' => 'SELF',
+        'Account.forgetTrustedDevices' => 'SELF',
         'Communication.index' => 'OFFICER',
         'Communication.add' => 'OFFICER',
         'Communication.edit' => 'OFFICER',

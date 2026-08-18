@@ -78,6 +78,13 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
     // 30-minute link proves the address; resend is enumeration-safe.
     $builder->post('/auth/verify-email', ['controller' => 'Auth', 'action' => 'verifyEmail']);
     $builder->post('/auth/verify-email/resend', ['controller' => 'Auth', 'action' => 'verifyResend']);
+    // Second-factor sign-in step (§3.18): a 2FA account's correct password on an
+    // untrusted device returns a challenge; this exchanges the emailed code for a
+    // session. Public — the session does not exist yet.
+    $builder->post('/auth/sign-in/verify', ['controller' => 'Auth', 'action' => 'signInVerify']);
+    // Confirm a login-e-mail change from the link mailed to the NEW address.
+    // Public: the link may be opened in a logged-out browser.
+    $builder->post('/auth/email-change/verify', ['controller' => 'Auth', 'action' => 'emailChangeVerify']);
     // Silent re-auth (token-at-rest hardening): reads the httpOnly refresh cookie,
     // rotates it, mints a fresh short-lived access token. logout revokes the family.
     $builder->post('/auth/refresh', ['controller' => 'Auth', 'action' => 'refresh']);
@@ -362,6 +369,21 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->get('/notifications', ['controller' => 'Communication', 'action' => 'notifications']);
         $s->get('/me/preferences', ['controller' => 'Communication', 'action' => 'myPreferences']);
         $s->put('/me/preferences', ['controller' => 'Communication', 'action' => 'setPreference']);
+
+        // --- Account & security (§3.18, self-service) --- (static before {id}) ---
+        // Every authenticated member manages their OWN account here; the acting
+        // user is the viewer, never a body-supplied id (Policy SELF tier).
+        $s->get('/me/account', ['controller' => 'Account', 'action' => 'show']);
+        $s->put('/me/account/profile', ['controller' => 'Account', 'action' => 'updateProfile']);
+        $s->post('/me/account/password', ['controller' => 'Account', 'action' => 'changePassword']);
+        $s->post('/me/account/email', ['controller' => 'Account', 'action' => 'requestEmailChange']);
+        $s->post('/me/account/2fa/enable', ['controller' => 'Account', 'action' => 'enableTwoFactor']);
+        $s->post('/me/account/2fa/confirm', ['controller' => 'Account', 'action' => 'confirmTwoFactor']);
+        $s->post('/me/account/2fa/disable', ['controller' => 'Account', 'action' => 'disableTwoFactor']);
+        $s->get('/me/account/sessions', ['controller' => 'Account', 'action' => 'sessions']);
+        $s->post('/me/account/sessions/revoke-others', ['controller' => 'Account', 'action' => 'revokeOtherSessions']);
+        $s->delete('/me/account/trusted-devices', ['controller' => 'Account', 'action' => 'forgetTrustedDevices']);
+        $s->delete('/me/account/sessions/{id}', ['controller' => 'Account', 'action' => 'revokeSession'])->setPass(['id']);
         $s->get('/alerts', ['controller' => 'Communication', 'action' => 'alerts']);
         $s->post('/alerts/send', ['controller' => 'Communication', 'action' => 'sendAlert']);
         $s->get('/announcements/audience-preview', ['controller' => 'Communication', 'action' => 'audiencePreview']);

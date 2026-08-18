@@ -95,6 +95,43 @@ final class Email
             . self::escape($detail) . '</div></td></tr>';
     }
 
+    /** @return array{text:string,html:string} The 2FA sign-in code e-mail. */
+    public static function loginCode(string $school, string $recipient, string $code): array
+    {
+        return self::render(
+            $school,
+            'Sign-in code',
+            'Your sign-in code',
+            sprintf('Hello %s,', $recipient),
+            sprintf('Use this code to finish signing in to %s on EMS.', $school),
+            sprintf('<div style="margin:28px 0;padding:20px;background:#eef2ff;border-radius:12px;text-align:center;color:#312e81;font:700 32px/1.2 monospace;letter-spacing:8px">%s</div><p style="margin:0;color:#4b5563">Enter this code to continue. It expires in 10 minutes and can be used once.</p>', self::escape($code)),
+            sprintf("Hello %s,\n\nUse this code to finish signing in to %s on EMS.\n\nYour sign-in code is: %s\n\nIt expires in 10 minutes and can be used once.\n\nIf you did not just try to sign in, change your password — someone may know it.", $recipient, $school, $code),
+            'If you did not just try to sign in, someone may know your password — change it right away. Never share this code with anyone.',
+        );
+    }
+
+    /** @return array{text:string,html:string} The confirm-new-address e-mail. */
+    public static function emailChange(string $school, string $recipient, string $newEmail, string $url): array
+    {
+        return self::render(
+            $school,
+            'Confirm your e-mail',
+            'Confirm your new e-mail',
+            sprintf('Hello %s,', $recipient),
+            sprintf('A request was made to change the sign-in e-mail for your %s account on EMS to %s. Confirm it is yours to complete the change.', $school, $newEmail),
+            self::button($url, 'Confirm this e-mail')
+                . '<p style="margin:24px 0 0;color:#4b5563">This secure link expires in 30 minutes. Until you confirm, your current e-mail keeps working.</p>',
+            sprintf(
+                "Hello %s,\n\nA request was made to change the sign-in e-mail for your %s account on EMS to %s.\n\nConfirm it is yours by opening this link within 30 minutes:\n%s\n\nUntil you confirm, your current e-mail keeps working. If you did not request this, you can ignore this e-mail.",
+                $recipient,
+                $school,
+                $newEmail,
+                $url,
+            ),
+            'If you did not request this change, you can safely ignore this e-mail — nothing will change without confirmation.',
+        );
+    }
+
     /** @return array{text:string,html:string} */
     public static function update(
         string $school,

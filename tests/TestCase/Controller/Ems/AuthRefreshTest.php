@@ -178,14 +178,17 @@ class AuthRefreshTest extends EmsIntegrationTestCase
         $this->signIn();
         $this->assertResponseOk();
 
-        // Token-slimming: the access token holds ONLY who (`sub`) + which surface
-        // (`type`), plus the standard iss/iat/nbf/exp. No role/school/name — those
-        // are read live from ems_users, never trusted from the client-held token.
+        // Token-slimming: the access token holds ONLY identity — who (`sub`),
+        // which surface (`type`), and which sign-in session (`sid`, the refresh
+        // family, so the Account surface can mark "this device") — plus the
+        // standard iss/iat/nbf/exp. No role/school/name: those are read live from
+        // ems_users, never trusted from the client-held token.
         $claims = Jwt::decode($this->responseJson()['token'], time());
         $this->assertSame('ems', $claims['type']);
         $this->assertSame($this->adminId, $claims['sub']);
+        $this->assertNotEmpty($claims['sid']);
         $this->assertEqualsCanonicalizing(
-            ['type', 'sub', 'iss', 'iat', 'nbf', 'exp'],
+            ['type', 'sub', 'sid', 'iss', 'iat', 'nbf', 'exp'],
             array_keys($claims),
         );
         $this->assertArrayNotHasKey('role', $claims);

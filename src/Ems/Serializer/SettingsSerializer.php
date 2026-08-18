@@ -39,7 +39,17 @@ final class SettingsSerializer
             'role' => (string)$u->role,
             'status' => (string)$u->status,
             'addedOn' => Wire::date($u->added_on),
+            // Self-service account fields (Account & security). twoFactorEnabled
+            // is always present; phone/avatar are omitted when unset, matching how
+            // the school logo is treated.
+            'twoFactorEnabled' => (bool)$u->two_factor_enabled,
         ];
+        if ($u->phone !== null && (string)$u->phone !== '') {
+            $out['phone'] = (string)$u->phone;
+        }
+        if ($u->avatar !== null && (string)$u->avatar !== '') {
+            $out['avatar'] = (string)$u->avatar;
+        }
         $link = self::link($u);
         if ($link !== null) {
             $out['link'] = $link;
