@@ -65,7 +65,7 @@ class DemoInboxController extends AppController
             ->toArray();
 
         $items = array_map(
-            static fn (EntityInterface $r): array => DemoRequestSerializer::request($r),
+            static fn(EntityInterface $r): array => DemoRequestSerializer::request($r),
             $rows,
         );
 

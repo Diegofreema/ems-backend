@@ -436,6 +436,13 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->get('/imports/{batchId}', ['controller' => 'Imports', 'action' => 'view'])->setPass(['batchId']);
     });
 
+    // CORS preflight for the tenant-less /platform/* surface. The generic
+    // catch-all below resolves the FIRST path segment as the controller, so it
+    // would look for a non-existent `PlatformController` and 404 the preflight;
+    // point /platform/** at the real DemoInbox controller so beforeFilter answers
+    // 204 (it short-circuits OPTIONS before any action runs).
+    $builder->connect('/platform/**', ['controller' => 'DemoInbox', 'action' => 'index', '_method' => 'OPTIONS']);
+
     // CORS preflight: answer OPTIONS under /api/ems before auth (204 in
     // Ems\AppController::beforeFilter).
     $builder->connect('/{controller}/**', ['action' => 'index', '_method' => 'OPTIONS']);
