@@ -371,7 +371,8 @@ class AssessmentsController extends AppController
     }
 
     /**
-     * The enrolled roster of a class (by id → name), ordered by surname.
+     * The enrolled roster of a class, matched by class id (with a name fallback
+     * for students not yet linked to an id), ordered by surname.
      *
      * @return array<\Cake\Datasource\EntityInterface>
      */
@@ -384,7 +385,10 @@ class AssessmentsController extends AppController
 
         return $this->tenant()->query('EmsStudents')
             ->where([
-                'class_group' => $name,
+                'OR' => [
+                    'class_group_id' => $classGroupId,
+                    ['class_group_id IS' => null, 'class_group' => $name],
+                ],
                 'status' => 'enrolled',
             ])
             ->orderByAsc('last_name')

@@ -102,6 +102,9 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
     $builder->post('/public/schools/{schoolId}/apply', ['controller' => 'Public', 'action' => 'apply'])
         ->setPass(['schoolId']);
 
+    // Book-a-demo lead capture: a prospect has no school, so this is tenant-less.
+    $builder->post('/public/demo-requests', ['controller' => 'DemoRequests', 'action' => 'create']);
+
     // --- Signed-link redemption (§3.8) ---
     // Tenant-less: the reader is identified from their Bearer token inside the
     // action (the ordered 410/401/403/404 checks live there, not in auth).
@@ -142,6 +145,7 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
 
         // Classes, timetable & registers (§3.12)
         $s->get('/classes/levels', ['controller' => 'Classes', 'action' => 'levels']);
+        $s->get('/classes/options', ['controller' => 'Classes', 'action' => 'options']);
         $s->get('/classes', ['controller' => 'Classes', 'action' => 'index']);
         $s->get('/classes/{id}', ['controller' => 'Classes', 'action' => 'view'])->setPass(['id']);
         $s->get('/classes/{id}/roster', ['controller' => 'Classes', 'action' => 'roster'])->setPass(['id']);

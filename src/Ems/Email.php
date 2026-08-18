@@ -156,6 +156,68 @@ final class Email
         );
     }
 
+    /**
+     * The acknowledgement sent to a prospect who booked a demo.
+     *
+     * @return array{text:string,html:string}
+     */
+    public static function demoRequestAck(string $contact, string $institution): array
+    {
+        return self::render(
+            'EMS',
+            'Demo request received',
+            'Thanks for your interest',
+            sprintf('Hello %s,', $contact),
+            sprintf('We have received your request for a demo of EMS for %s.', $institution),
+            '<p style="margin:0;color:#4b5563;font-size:16px;line-height:1.6">A member of our team will reach out shortly to arrange a time that suits you. There is nothing more you need to do for now.</p>',
+            sprintf("Hello %s,\n\nWe have received your request for a demo of EMS for %s.\n\nA member of our team will reach out shortly to arrange a time that suits you. There is nothing more you need to do for now.\n\nThank you,\nThe EMS team", $contact, $institution),
+            'You are receiving this message because a demo of EMS was requested with this e-mail address.',
+        );
+    }
+
+    /**
+     * The internal notification e-mailed to the team for each demo request.
+     * Reply-To is set to the prospect (see Resend::deliver), so the details
+     * table here is for the team to read and act on.
+     *
+     * @param array<string,string> $fields Ordered label => value; blanks dropped.
+     * @return array{text:string,html:string}
+     */
+    public static function demoRequestNotify(string $institution, array $fields): array
+    {
+        $rows = '';
+        $lines = '';
+        foreach ($fields as $label => $value) {
+            if (trim($value) === '') {
+                continue;
+            }
+            $rows .= self::detailRow($label, $value);
+            $lines .= sprintf("%s: %s\n", $label, $value);
+        }
+
+        return self::render(
+            'EMS',
+            'New demo request',
+            $institution,
+            'A new demo request has arrived.',
+            'Reply to this e-mail to reach the contact directly.',
+            '<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;margin:8px 0 0">' . $rows . '</table>',
+            sprintf("A new demo request has arrived.\n\n%s\nReply to this e-mail to reach the contact directly.", $lines),
+            'Sent by the EMS book-a-demo form.',
+        );
+    }
+
+    /** One label/value row of the demo-request details table. */
+    private static function detailRow(string $label, string $value): string
+    {
+        return '<tr>'
+            . '<td style="padding:8px 12px 8px 0;vertical-align:top;color:#6b7280;font-size:13px;font-weight:700;white-space:nowrap">'
+            . self::escape($label) . '</td>'
+            . '<td style="padding:8px 0;vertical-align:top;color:#111827;font-size:15px;line-height:1.5">'
+            . nl2br(self::escape($value)) . '</td>'
+            . '</tr>';
+    }
+
     /** @return array{text:string,html:string} */
     private static function render(
         string $school,

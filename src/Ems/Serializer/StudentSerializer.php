@@ -21,6 +21,7 @@ final class StudentSerializer
             'lastName' => (string)$s->last_name,
             'dateOfBirth' => Wire::date($s->date_of_birth),
             'gender' => (string)$s->gender,
+            'classId' => $s->class_group_id === null ? null : (string)$s->class_group_id,
             'classGroup' => (string)$s->class_group,
             'status' => (string)$s->status,
             'guardianName' => (string)$s->guardian_name,

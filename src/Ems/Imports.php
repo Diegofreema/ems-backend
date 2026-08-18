@@ -277,6 +277,8 @@ class Imports
             $known = array_map(fn($c) => (string)$c->name, $this->classGroups());
             if ($known !== [] && !$this->anyMatch($known, $class)) {
                 $issues[] = ['column' => 'class_group', 'message' => sprintf('The school has no class called "%s". Create the class first, or correct the spelling.', $class)];
+            } elseif ($this->classMatch($class)['ambiguous']) {
+                $issues[] = ['column' => 'class_group', 'message' => sprintf('More than one class is named "%s". Rename the arms so each is distinct, then import again.', $class)];
             }
         }
 
@@ -587,6 +589,7 @@ class Imports
             'date_of_birth' => $values['date_of_birth'] ?? '',
             'gender' => mb_strtolower((string)($values['gender'] ?? '')),
             'class_group' => $values['class_group'] ?? '',
+            'class_group_id' => $this->classMatch((string)($values['class_group'] ?? ''))['id'],
             'status' => ($values['status'] ?? '') === '' ? 'enrolled' : mb_strtolower((string)$values['status']),
             'guardian_name' => $values['guardian_name'] ?? '',
             'guardian_phone' => $values['guardian_phone'] ?? '',
@@ -636,6 +639,16 @@ class Imports
         }
         if (($values['status'] ?? '') !== '') {
             $apply('status', mb_strtolower((string)$values['status']), 'status');
+        }
+        // Keep the canonical class link in step with the (possibly updated) name
+        // whenever it resolves to a single class; the name change is already
+        // reported above, so this id sync is silent.
+        $incomingClass = (string)($values['class_group'] ?? '');
+        if ($incomingClass !== '') {
+            $classId = $this->classMatch($incomingClass)['id'];
+            if ($classId !== null) {
+                $existing->class_group_id = $classId;
+            }
         }
         $this->locator->get('EmsStudents')->saveOrFail($existing);
         $this->studentsCache = null;
@@ -928,6 +941,32 @@ class Imports
     {
         return $this->classGroupsCache ??= $this->tenant()->query('EmsClassGroups')
             ->all()->toList();
+    }
+
+    /**
+     * Resolve an imported class name to its canonical id. A name that matches
+     * exactly one class links by id; a name shared by two arms is ambiguous and
+     * links to none (the row is rejected in validation instead of guessing).
+     *
+     * @return array{id: ?string, ambiguous: bool}
+     */
+    private function classMatch(string $name): array
+    {
+        if (trim($name) === '') {
+            return ['id' => null, 'ambiguous' => false];
+        }
+        $needle = Dedup::norm($name);
+        $matches = [];
+        foreach ($this->classGroups() as $c) {
+            if (Dedup::norm((string)$c->name) === $needle) {
+                $matches[] = (string)$c->id;
+            }
+        }
+        if (count($matches) === 1) {
+            return ['id' => $matches[0], 'ambiguous' => false];
+        }
+
+        return ['id' => null, 'ambiguous' => count($matches) > 1];
     }
 
     /**

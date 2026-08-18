@@ -428,18 +428,46 @@ class Fees
      * preview AND at approval, so the roster and price are always issue-time
      * authoritative — a draft's figures are advisory.
      *
-     * @param array<int, string> $classGroups
+     * Students are enumerated by class id (so each arm is billed independently),
+     * with a name fallback for a batch that carries only a legacy name list or
+     * for students not yet linked to a class id.
+     *
+     * @param array<int, string> $classGroupIds
+     * @param array<int, string> $classGroupNames
      * @param array<int, array<string, mixed>> $template normalized {label, dueOn, percent}
      * @return array<string, mixed>
      */
-    public function resolveInvoiceBatch(EntityInterface $plan, array $classGroups, array $template, ?string $dueDate): array
-    {
+    public function resolveInvoiceBatch(
+        EntityInterface $plan,
+        array $classGroupIds,
+        array $classGroupNames,
+        array $template,
+        ?string $dueDate,
+    ): array {
         $session = (string)$plan->session;
         $term = (string)$plan->term;
         $lineItems = is_string($plan->items) ? json_decode($plan->items, true) : (array)$plan->items;
 
+        $conditions = ['status' => 'enrolled'];
+        if ($classGroupIds !== []) {
+            $or = ['class_group_id IN' => $classGroupIds];
+            $idNames = $this->tenant()->query('EmsClassGroups')
+                ->select(['name'])
+                ->where(['id IN' => $classGroupIds])
+                ->all()
+                ->extract('name')
+                ->toList();
+            if ($idNames !== []) {
+                $or[] = ['class_group_id IS' => null, 'class_group IN' => $idNames];
+            }
+            $conditions['OR'] = $or;
+        } elseif ($classGroupNames !== []) {
+            $conditions['class_group IN'] = $classGroupNames;
+        } else {
+            $conditions[] = '1 = 0';
+        }
         $students = $this->tenant()->query('EmsStudents')
-            ->where(['class_group IN' => $classGroups, 'status' => 'enrolled'])
+            ->where($conditions)
             ->all()
             ->toList();
         usort(

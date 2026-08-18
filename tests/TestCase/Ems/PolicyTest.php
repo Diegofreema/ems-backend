@@ -30,7 +30,7 @@ class PolicyTest extends TestCase
     private const ROLES = ['administrator', 'registrar', 'bursar', 'teacher', 'parent', 'student'];
 
     /** Public actions authenticate later / not at all — never Policy's concern. */
-    private const PUBLIC_CONTROLLERS = ['Auth', 'Public', 'Files'];
+    private const PUBLIC_CONTROLLERS = ['Auth', 'Public', 'Files', 'DemoRequests'];
 
     private const WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 

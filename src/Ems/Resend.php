@@ -12,9 +12,19 @@ final class Resend
 {
     private const ENDPOINT = 'https://api.resend.com/emails';
 
-    /** Send one text message with an optional HTML alternative. */
-    public static function deliver(string $to, string $subject, string $text, ?string $html = null): void
-    {
+    /**
+     * Send one text message with an optional HTML alternative.
+     *
+     * `$replyTo` sets the Reply-To header — used by the book-a-demo team
+     * notification so a reply reaches the prospect, not the no-reply sender.
+     */
+    public static function deliver(
+        string $to,
+        string $subject,
+        string $text,
+        ?string $html = null,
+        ?string $replyTo = null,
+    ): void {
         $apiKey = trim((string)Configure::read('Ems.resendApiKey', ''));
         $from = trim((string)Configure::read('Ems.emailFrom', ''));
         if ($apiKey === '' || $from === '') {
@@ -29,6 +39,9 @@ final class Resend
         ];
         if ($html !== null) {
             $payload['html'] = $html;
+        }
+        if ($replyTo !== null && $replyTo !== '') {
+            $payload['reply_to'] = $replyTo;
         }
 
         $response = (new Client())->post(self::ENDPOINT, json_encode($payload, JSON_THROW_ON_ERROR), [

@@ -310,7 +310,7 @@ class AdmissionsController extends AppController
         }
 
         $applications->getConnection()->transactional(function () use ($applications, $application, $id, $target): void {
-            $student = $this->createStudentFromApplication($application, (string)$target->name);
+            $student = $this->createStudentFromApplication($application, $target);
             $this->createApplicationEnrolment($application, $student, $target);
             $this->createPrimaryGuardian($application, (string)$student->id);
             $carried = $this->transferDocuments($id, (string)$student->id);
@@ -362,7 +362,7 @@ class AdmissionsController extends AppController
         ]));
     }
 
-    private function createStudentFromApplication(EntityInterface $application, string $className): EntityInterface
+    private function createStudentFromApplication(EntityInterface $application, EntityInterface $target): EntityInterface
     {
         $students = $this->fetchTable('EmsStudents');
         $guardian = is_array($application->guardian) ? $application->guardian : [];
@@ -380,7 +380,8 @@ class AdmissionsController extends AppController
             'last_name' => (string)$application->last_name,
             'date_of_birth' => $application->date_of_birth,
             'gender' => (string)$application->gender,
-            'class_group' => $className,
+            'class_group' => (string)$target->name,
+            'class_group_id' => (string)$target->id,
             'status' => 'enrolled',
             'guardian_name' => trim(sprintf('%s %s', $guardian['firstName'] ?? '', $guardian['lastName'] ?? '')),
             'guardian_phone' => (string)($guardian['phone'] ?? ''),

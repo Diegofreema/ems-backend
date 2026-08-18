@@ -117,30 +117,35 @@ class Scope
         }
 
         // parent / student: the class group(s) their ward(s) currently sit in,
-        // matched by class *name* (the contract's join key for rosters).
+        // by the ward's class id (a name fallback covers wards not yet linked).
         $wardIds = $this->studentIds();
         if ($wardIds === null || $wardIds === []) {
             return $this->classGroupIds = [];
         }
-        $classNames = $this->tenant()->query('EmsStudents')
-            ->select(['class_group'])
-            ->distinct(['class_group'])
-            ->where(['id IN' => $wardIds])
-            ->all()
-            ->extract('class_group')
-            ->filter()
-            ->toList();
-        if ($classNames === []) {
-            return $this->classGroupIds = [];
+        $ids = [];
+        $fallbackNames = [];
+        foreach (
+            $this->tenant()->query('EmsStudents')
+                ->select(['class_group_id', 'class_group'])
+                ->where(['id IN' => $wardIds]) as $row
+        ) {
+            if ($row->class_group_id !== null && (string)$row->class_group_id !== '') {
+                $ids[(string)$row->class_group_id] = true;
+            } elseif ((string)$row->class_group !== '') {
+                $fallbackNames[(string)$row->class_group] = true;
+            }
         }
-        $ids = $this->tenant()->query('EmsClassGroups')
-            ->select(['id'])
-            ->where(['name IN' => $classNames])
-            ->all()
-            ->extract('id')
-            ->toList();
+        if ($fallbackNames !== []) {
+            foreach (
+                $this->tenant()->query('EmsClassGroups')
+                    ->select(['id'])
+                    ->where(['name IN' => array_keys($fallbackNames)]) as $row
+            ) {
+                $ids[(string)$row->id] = true;
+            }
+        }
 
-        return $this->classGroupIds = $ids;
+        return $this->classGroupIds = array_keys($ids);
     }
 
     /**
@@ -169,7 +174,8 @@ class Scope
             return $this->studentIds = $id === null ? [] : [$id];
         }
         if ($role === 'teacher') {
-            // Rosters of the teacher's classes, matched by class name.
+            // Rosters of the teacher's classes, matched by class id (a name
+            // fallback covers students not yet linked to an id).
             $classIds = $this->classGroupIds();
             if ($classIds === null || $classIds === []) {
                 return $this->studentIds = [];
@@ -180,14 +186,13 @@ class Scope
                 ->all()
                 ->extract('name')
                 ->toList();
-            if ($names === []) {
-                return $this->studentIds = [];
+            $or = ['class_group_id IN' => $classIds];
+            if ($names !== []) {
+                $or[] = ['class_group_id IS' => null, 'class_group IN' => $names];
             }
             $ids = $this->tenant()->query('EmsStudents')
                 ->select(['id'])
-                ->where([
-                    'class_group IN' => $names,
-                ])
+                ->where(['OR' => $or])
                 ->all()
                 ->extract('id')
                 ->toList();

@@ -30,9 +30,9 @@ final class InvoiceBatchesController extends AppController
      */
     public function preview(): Response
     {
-        [$plan, $classGroups, $template, $dueDate] = $this->criteria($this->body());
+        [$plan, $classGroupIds, $classGroupNames, $template, $dueDate] = $this->criteria($this->body());
 
-        return $this->json($this->previewWire($plan, $classGroups, $template, $dueDate));
+        return $this->json($this->previewWire($plan, $classGroupIds, $classGroupNames, $template, $dueDate));
     }
 
     /**
@@ -50,14 +50,14 @@ final class InvoiceBatchesController extends AppController
         if ($replay !== null) {
             return $this->json($replay['body'], $replay['status']);
         }
-        [$plan, $classGroups, $template, $dueDate] = $this->criteria($body);
-        $resolved = $this->feesEngine()->resolveInvoiceBatch($plan, $classGroups, $template, $dueDate);
+        [$plan, $classGroupIds, $classGroupNames, $template, $dueDate] = $this->criteria($body);
+        $resolved = $this->feesEngine()->resolveInvoiceBatch($plan, $classGroupIds, $classGroupNames, $template, $dueDate);
         if ($resolved['issueCount'] === 0) {
             $this->fail(422, Messages::BATCH_NOTHING_TO_ISSUE);
         }
 
         $batches = $this->fetchTable('EmsInvoiceBatches');
-        $result = $batches->getConnection()->transactional(function () use ($batches, $plan, $classGroups, $template, $dueDate, $body, $key) {
+        $result = $batches->getConnection()->transactional(function () use ($batches, $plan, $classGroupIds, $classGroupNames, $template, $dueDate, $body, $key) {
             $this->financeSecurity()->assertWritable();
             $row = $batches->newEntity([
                 'id' => Text::uuid(),
@@ -66,7 +66,8 @@ final class InvoiceBatchesController extends AppController
                 'fee_plan_version_id' => (string)$plan->id,
                 'session' => (string)$plan->session,
                 'term' => (string)$plan->term,
-                'class_groups' => array_values($classGroups),
+                'class_groups' => array_values($classGroupNames),
+                'class_group_ids' => array_values($classGroupIds),
                 'schedule_template' => $template !== [] ? $template : null,
                 'due_date' => $template === [] ? $dueDate : null,
                 'requested_by_user_id' => $this->viewer->userId,
@@ -75,7 +76,7 @@ final class InvoiceBatchesController extends AppController
             ], ['validate' => false]);
             $batches->saveOrFail($row);
             $wire = $this->batchWire($row, null) + [
-                'preview' => $this->previewWire($plan, $classGroups, $template, $dueDate),
+                'preview' => $this->previewWire($plan, $classGroupIds, $classGroupNames, $template, $dueDate),
             ];
             $this->audit()->log(
                 $this->viewer,
@@ -84,7 +85,7 @@ final class InvoiceBatchesController extends AppController
                 (string)$row->id,
                 sprintf(
                     'A bulk invoice batch for %s was drafted and awaits independent approval.',
-                    implode(', ', $classGroups),
+                    implode(', ', $classGroupNames),
                 ),
             );
             $this->financeSecurity()->remember($this->viewer, 'invoice_batch.create', $key, $body, 201, $wire);
@@ -146,6 +147,7 @@ final class InvoiceBatchesController extends AppController
                 : (array)($batch->schedule_template ?? []);
             $wire['preview'] = $this->previewWire(
                 $plan,
+                $this->classGroupIdsOf($batch),
                 $this->classGroupsOf($batch),
                 $template,
                 $this->dueDateStr($batch),
@@ -239,6 +241,7 @@ final class InvoiceBatchesController extends AppController
             : (array)($batch->schedule_template ?? []);
         $resolved = $this->feesEngine()->resolveInvoiceBatch(
             $plan,
+            $this->classGroupIdsOf($batch),
             $this->classGroupsOf($batch),
             $template,
             $this->dueDateStr($batch),
@@ -321,20 +324,43 @@ final class InvoiceBatchesController extends AppController
     /**
      * Validate and resolve a batch's criteria from the request body.
      *
+     * A class dropdown sends `classGroupIds` (each arm billed on its own id); the
+     * legacy `classGroups` name list is still accepted (resolution stays name-
+     * based, billing every arm that carries the name); with neither, the batch
+     * defaults to every class at the plan's level.
+     *
      * @param array<string, mixed> $body
-     * @return array{0:\Cake\Datasource\EntityInterface, 1:array<int,string>, 2:array<int,array<string,mixed>>, 3:?string}
+     * @return array{0:\Cake\Datasource\EntityInterface, 1:array<int,string>, 2:array<int,string>, 3:array<int,array<string,mixed>>, 4:?string}
      */
     private function criteria(array $body): array
     {
         $plan = $this->approvedPlan((string)($body['feePlanVersionId'] ?? ''));
-        $classGroups = array_values(array_filter(array_map(
+        $idInput = array_values(array_filter(array_map(
+            static fn($g) => trim((string)$g),
+            is_array($body['classGroupIds'] ?? null) ? $body['classGroupIds'] : [],
+        ), static fn($g) => $g !== ''));
+        $nameInput = array_values(array_filter(array_map(
             static fn($g) => trim((string)$g),
             is_array($body['classGroups'] ?? null) ? $body['classGroups'] : [],
         ), static fn($g) => $g !== ''));
-        if ($classGroups === []) {
-            $classGroups = $this->classGroupsForLevel((string)$plan->level);
+
+        if ($idInput !== []) {
+            $rows = $this->tenant()->query('EmsClassGroups')
+                ->select(['id', 'name'])
+                ->where(['id IN' => $idInput])
+                ->all()
+                ->toList();
+            $classGroupIds = array_map(static fn($r) => (string)$r->id, $rows);
+            $classGroupNames = array_map(static fn($r) => (string)$r->name, $rows);
+        } elseif ($nameInput !== []) {
+            $classGroupIds = [];
+            $classGroupNames = $nameInput;
+        } else {
+            $rows = $this->classGroupRowsForLevel((string)$plan->level);
+            $classGroupIds = array_map(static fn($r) => (string)$r->id, $rows);
+            $classGroupNames = array_map(static fn($r) => (string)$r->name, $rows);
         }
-        if ($classGroups === []) {
+        if ($classGroupIds === [] && $classGroupNames === []) {
             $this->fail(422, Messages::BATCH_NO_CLASS_GROUPS);
         }
         $template = $this->feesEngine()->normalizeScheduleTemplate(
@@ -348,21 +374,24 @@ final class InvoiceBatchesController extends AppController
             }
         }
 
-        return [$plan, $classGroups, $template, $dueDate];
+        return [$plan, $classGroupIds, $classGroupNames, $template, $dueDate];
     }
 
-    /** The class-group names defined at a plan's level (the default roster). */
-    private function classGroupsForLevel(string $level): array
+    /**
+     * The classes defined at a plan's level (the default roster) — id + name.
+     *
+     * @return array<int,\Cake\Datasource\EntityInterface>
+     */
+    private function classGroupRowsForLevel(string $level): array
     {
         if ($level === '') {
             return [];
         }
 
         return $this->tenant()->query('EmsClassGroups')
-            ->select(['name'])
+            ->select(['id', 'name'])
             ->where(['level' => $level])
             ->all()
-            ->extract('name')
             ->toList();
     }
 
@@ -374,6 +403,24 @@ final class InvoiceBatchesController extends AppController
             : (array)$batch->class_groups;
 
         return array_values(array_map('strval', $groups));
+    }
+
+    /**
+     * The batch's class ids. Empty for batches drafted before the id column
+     * existed — those resolve through their name list instead.
+     *
+     * @return array<int,string>
+     */
+    private function classGroupIdsOf(EntityInterface $batch): array
+    {
+        $ids = is_string($batch->class_group_ids)
+            ? (array)json_decode($batch->class_group_ids, true)
+            : (array)($batch->class_group_ids ?? []);
+
+        return array_values(array_filter(
+            array_map('strval', $ids),
+            static fn(string $v): bool => $v !== '',
+        ));
     }
 
     /** ISO the batch's stored due date — a Cake Date's (string) cast is locale-formatted. */
@@ -419,20 +466,27 @@ final class InvoiceBatchesController extends AppController
      * The advisory dry-run: the resolved roster with per-student totals and the
      * skip list, plus the batch-wide totals.
      *
-     * @param array<int,string> $classGroups
+     * @param array<int,string> $classGroupIds
+     * @param array<int,string> $classGroupNames
      * @param array<int,array<string,mixed>> $template
      * @return array<string,mixed>
      */
-    private function previewWire(EntityInterface $plan, array $classGroups, array $template, ?string $dueDate): array
-    {
-        $resolved = $this->feesEngine()->resolveInvoiceBatch($plan, $classGroups, $template, $dueDate);
+    private function previewWire(
+        EntityInterface $plan,
+        array $classGroupIds,
+        array $classGroupNames,
+        array $template,
+        ?string $dueDate,
+    ): array {
+        $resolved = $this->feesEngine()->resolveInvoiceBatch($plan, $classGroupIds, $classGroupNames, $template, $dueDate);
 
         return [
             'feePlanVersionId' => (string)$plan->id,
             'session' => (string)$plan->session,
             'term' => (string)$plan->term,
             'level' => (string)$plan->level,
-            'classGroups' => array_values($classGroups),
+            'classGroupIds' => array_values($classGroupIds),
+            'classGroups' => array_values($classGroupNames),
             'schedule' => array_values($template),
             'dueDate' => $dueDate,
             'toIssue' => $resolved['toIssue'],
@@ -459,6 +513,7 @@ final class InvoiceBatchesController extends AppController
             'feePlanVersionId' => (string)$b->fee_plan_version_id,
             'session' => (string)$b->session,
             'term' => (string)$b->term,
+            'classGroupIds' => $this->classGroupIdsOf($b),
             'classGroups' => $this->classGroupsOf($b),
             'schedule' => array_values($template),
             'dueDate' => $this->dueDateStr($b),

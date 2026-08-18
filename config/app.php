@@ -103,6 +103,8 @@ return [
         'frontendBaseUrl' => rtrim((string)env('EMS_FRONTEND_URL', 'http://localhost:5173'), '/'),
         'resendApiKey' => env('RESEND_API_KEY'),
         'emailFrom' => env('EMS_EMAIL_FROM', 'noreply@localhost'),
+        // Where book-a-demo requests are e-mailed for the team to action.
+        'demoNotifyEmail' => env('EMS_DEMO_NOTIFY_EMAIL', 'info@netpro.africa'),
         'corsOrigins' => array_values(array_filter(array_map(
             static function (string $origin): string {
                 return rtrim(trim($origin), '/');

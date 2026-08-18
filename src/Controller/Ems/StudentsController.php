@@ -225,14 +225,17 @@ class StudentsController extends AppController
     }
 
     /**
-     * POST /students/{id}/class { classGroup } — updates the live placement
-     * only (enrolment history is written by promotion, not here).
+     * POST /students/{id}/class { classGroupId } — updates the live placement
+     * only (enrolment history is written by promotion, not here). Prefers the
+     * canonical class id; the legacy `{ classGroup }` name is still accepted.
      */
     public function assignClass(string $id): Response
     {
         $students = $this->fetchTable('EmsStudents');
         $student = $this->findStudent($id);
-        $student->class_group = trim((string)($this->body()['classGroup'] ?? ''));
+        [$classGroupId, $className] = $this->resolveClassPlacement($this->body());
+        $student->class_group_id = $classGroupId;
+        $student->class_group = $className;
         $students->saveOrFail($student);
 
         return $this->json(StudentSerializer::one($student));
@@ -359,6 +362,7 @@ class StudentsController extends AppController
     private function studentData(?array $body = null): array
     {
         $body ??= $this->body();
+        [$classGroupId, $className] = $this->resolveClassPlacement($body);
 
         return [
             'school_id' => $this->viewer->schoolId,
@@ -367,7 +371,8 @@ class StudentsController extends AppController
             'last_name' => trim((string)($body['lastName'] ?? '')),
             'date_of_birth' => (string)($body['dateOfBirth'] ?? ''),
             'gender' => (string)($body['gender'] ?? ''),
-            'class_group' => trim((string)($body['classGroup'] ?? '')),
+            'class_group_id' => $classGroupId,
+            'class_group' => $className,
             'status' => (string)($body['status'] ?? 'enrolled'),
             'guardian_name' => trim((string)($body['guardianName'] ?? '')),
             'guardian_phone' => trim((string)($body['guardianPhone'] ?? '')),
@@ -393,9 +398,47 @@ class StudentsController extends AppController
     }
 
     /**
+     * Resolve a request body's class placement into
+     * [class_group_id|null, class_group_name].
+     *
+     * Prefers the canonical `classGroupId` (422 if it names no class); otherwise
+     * falls back to the legacy `classGroup` name — resolved to an id when it
+     * matches a class, else kept as free text with a null id (which every
+     * student-side read still resolves through its name).
+     *
+     * @return array{0: ?string, 1: string}
+     */
+    private function resolveClassPlacement(array $body): array
+    {
+        $id = trim((string)($body['classGroupId'] ?? ''));
+        if ($id !== '') {
+            $class = $this->tenant()->query('EmsClassGroups')
+                ->where(['id' => $id])
+                ->first();
+            if ($class === null) {
+                $this->fail(422, Messages::STUDENT_CLASS_UNKNOWN);
+            }
+
+            return [(string)$class->id, (string)$class->name];
+        }
+
+        $name = trim((string)($body['classGroup'] ?? ''));
+        if ($name === '') {
+            return [null, ''];
+        }
+        $class = $this->tenant()->query('EmsClassGroups')
+            ->where(['name' => $name])
+            ->orderByAsc('created')
+            ->first();
+
+        return [$class !== null ? (string)$class->id : null, $name];
+    }
+
+    /**
      * §3.10 side effect: an enrolled student gains an active enrolment in the
-     * current open session; level = classGroup minus its trailing stream
-     * letter ("JSS 1A" → "JSS 1").
+     * current open session. The class name and level are taken from the linked
+     * class row (admin-defined levels); a still-unlinked student falls back to
+     * the class name minus its trailing stream letter ("JSS 1A" → "JSS 1").
      */
     private function createEnrolmentIfCurrent(EntityInterface $student): void
     {
@@ -410,15 +453,25 @@ class StudentsController extends AppController
             return;
         }
 
-        $classGroup = (string)$student->class_group;
-        $level = $classGroup === '' ? '' : trim(substr($classGroup, 0, -1));
+        $className = (string)$student->class_group;
+        $level = $className === '' ? '' : trim(substr($className, 0, -1));
+        $classGroupId = (string)($student->class_group_id ?? '');
+        if ($classGroupId !== '') {
+            $class = $this->tenant()->query('EmsClassGroups')
+                ->where(['id' => $classGroupId])
+                ->first();
+            if ($class !== null) {
+                $className = (string)$class->name;
+                $level = (string)$class->level;
+            }
+        }
 
         $enrolments = $this->fetchTable('EmsEnrolments');
         $enrolments->saveOrFail($enrolments->newEntity([
             'school_id' => $this->viewer->schoolId,
             'student_id' => (string)$student->id,
             'session' => (string)$session->name,
-            'class_group' => $classGroup,
+            'class_group' => $className,
             'level' => $level,
             'started_on' => FrozenDate::today()->format('Y-m-d'),
             'status' => 'active',

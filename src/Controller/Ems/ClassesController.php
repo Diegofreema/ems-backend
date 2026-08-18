@@ -95,6 +95,24 @@ class ClassesController extends AppController
     }
 
     /**
+     * GET /classes/options — the whole class list for pickers: every class the
+     * viewer may see, id + label, sorted by level then name. Unpaginated on
+     * purpose — a school's class set is small and a dropdown wants it whole.
+     * Backs the student and teacher class-assignment dropdowns, so a duplicate
+     * arm is a distinct, selectable option (each has its own id).
+     */
+    public function options(): Response
+    {
+        $q = $this->scope()->applyClassFilter($this->tenant()->query('EmsClassGroups'));
+        $summaries = $this->summarize($q->all()->toList());
+        usort($summaries, function (array $a, array $b): int {
+            return [$a['level'], $a['name']] <=> [$b['level'], $b['name']];
+        });
+
+        return $this->json(array_values($summaries));
+    }
+
+    /**
      * GET /classes/{id}/roster — enrolled only, "lastName firstName" asc.
      */
     public function roster(string $id): Response
@@ -313,27 +331,36 @@ class ClassesController extends AppController
         return $this->json(null, 204);
     }
 
-    /** POST /classes — create a class group (administrator/registrar). */
+    /**
+     * POST /classes — create a class group (administrator/registrar).
+     *
+     * A class is a level ("JSS 1") plus an arm/stream letter ("A"); the display
+     * name is the two joined ("JSS 1A"). Arms are deliberately NOT unique — a
+     * level may hold a second "A" — so a class is identified by its id, never by
+     * name. An explicit `name` is still honoured for the legacy combined-name
+     * client; otherwise it is composed from the level and arm.
+     */
     public function add(): Response
     {
         $body = $this->body();
+        $level = trim((string)($body['level'] ?? ''));
+        if ($level === '') {
+            $this->fail(422, Messages::CLASS_LEVEL_REQUIRED);
+        }
+        $stream = trim((string)($body['stream'] ?? ''));
         $name = trim((string)($body['name'] ?? ''));
         if ($name === '') {
-            $this->fail(422, Messages::CLASS_NAME_REQUIRED);
+            if ($stream === '') {
+                $this->fail(422, Messages::CLASS_ARM_REQUIRED);
+            }
+            $name = $level . $stream;
         }
         $groups = $this->fetchTable('EmsClassGroups');
-        if (
-            $this->tenant()->exists('EmsClassGroups', [
-                'LOWER(name)' => mb_strtolower($name),
-            ])
-        ) {
-            $this->fail(422, Messages::CLASS_EXISTS);
-        }
         $row = $groups->saveOrFail($groups->newEntity([
             'school_id' => $this->viewer->schoolId,
             'name' => $name,
-            'level' => trim((string)($body['level'] ?? '')),
-            'stream' => trim((string)($body['stream'] ?? '')),
+            'level' => $level,
+            'stream' => $stream,
             'form_teacher_id' => (string)($body['formTeacherId'] ?? '') !== ''
                 ? (string)$body['formTeacherId']
                 : null,
@@ -350,8 +377,9 @@ class ClassesController extends AppController
         return $this->json($this->summarize([$row])[0], 201);
     }
 
-    /** PUT /classes/{id} — students reference the class by NAME, so a rename
-     *  cascades to their records inside the same transaction. */
+    /** PUT /classes/{id} — a class is identified by id, so a rename only needs
+     *  to refresh the denormalised class-name label students carry (kept for
+     *  display and legacy reads); duplicate arm names are allowed. */
     public function edit(string $id): Response
     {
         $group = $this->findClass($id);
@@ -361,15 +389,6 @@ class ClassesController extends AppController
             $this->fail(422, Messages::CLASS_NAME_REQUIRED);
         }
         $groups = $this->fetchTable('EmsClassGroups');
-        $clash = $this->tenant()->query('EmsClassGroups')
-            ->where([
-                'LOWER(name)' => mb_strtolower($name),
-                'id !=' => $group->id,
-            ])
-            ->count();
-        if ($clash > 0) {
-            $this->fail(422, Messages::CLASS_EXISTS);
-        }
         $was = (string)$group->name;
         $group->name = $name;
         if (array_key_exists('level', $body)) {
@@ -389,9 +408,23 @@ class ClassesController extends AppController
         $groups->getConnection()->transactional(function () use ($groups, $group, $was, $name): void {
             $groups->saveOrFail($group);
             if ($was !== $name) {
-                $this->fetchTable('EmsStudents')->updateAll(
+                $students = $this->fetchTable('EmsStudents');
+                // Refresh the denormalised label on students linked to this class
+                // by id.
+                $students->updateAll(
                     ['class_group' => $name],
-                    ['school_id' => $this->viewer->schoolId, 'class_group' => $was],
+                    ['school_id' => $this->viewer->schoolId, 'class_group_id' => $group->id],
+                );
+                // Legacy students still linked only by the old name are adopted
+                // by id and relabelled, so they stay in this class' roster
+                // rather than falling out when the name changes.
+                $students->updateAll(
+                    ['class_group' => $name, 'class_group_id' => $group->id],
+                    [
+                        'school_id' => $this->viewer->schoolId,
+                        'class_group_id IS' => null,
+                        'class_group' => $was,
+                    ],
                 );
             }
         });
@@ -412,12 +445,15 @@ class ClassesController extends AppController
     public function delete(string $id): Response
     {
         $group = $this->findClass($id);
-        // Students reference their class by NAME (denormalized placement), the
-        // academic tables by class-group id — check the name first, then the
-        // id-keyed references through the shared guard.
+        // A class is in use if any student links to it by id, or a legacy
+        // still-unlinked student matches it by name; the academic tables are
+        // checked by class-group id through the shared guard below.
         if (
             $this->tenant()->exists('EmsStudents', [
-                'class_group' => (string)$group->name,
+                'OR' => [
+                    'class_group_id' => (string)$group->id,
+                    ['class_group_id IS' => null, 'class_group' => (string)$group->name],
+                ],
             ])
         ) {
             $this->fail(409, Messages::CLASS_IN_USE);
@@ -633,8 +669,8 @@ class ClassesController extends AppController
     }
 
     /**
-     * Enrolled students of a class, matched by class NAME, sorted
-     * "lastName firstName" asc.
+     * Enrolled students of a class, matched by class id (with a name fallback
+     * for students not yet linked to an id), sorted "lastName firstName" asc.
      *
      * @return array<\Cake\Datasource\EntityInterface>
      */
@@ -642,7 +678,10 @@ class ClassesController extends AppController
     {
         return $this->tenant()->query('EmsStudents')
             ->where([
-                'class_group' => $group->name,
+                'OR' => [
+                    'class_group_id' => (string)$group->id,
+                    ['class_group_id IS' => null, 'class_group' => (string)$group->name],
+                ],
                 'status' => 'enrolled',
             ])
             ->orderByAsc('last_name')
@@ -663,31 +702,53 @@ class ClassesController extends AppController
             return [];
         }
 
-        $names = array_map(function (EntityInterface $g) {
-            return (string)$g->name;
-        }, $groups);
-        $counts = [];
-        $countQuery = $this->tenant()->query('EmsStudents');
-        $rows = $countQuery
-            ->select(['class_group', 'count' => $countQuery->func()->count('*')])
-            ->where([
-                'status' => 'enrolled',
-                'class_group IN' => $names,
-            ])
-            ->groupBy('class_group')
-            ->enableHydration(false)
-            ->all();
-        foreach ($rows as $row) {
-            $counts[(string)$row['class_group']] = (int)$row['count'];
+        $ids = array_map(fn(EntityInterface $g): string => (string)$g->id, $groups);
+        $names = array_map(fn(EntityInterface $g): string => (string)$g->name, $groups);
+        $nameFreq = array_count_values($names);
+
+        // Enrolled counts keyed by the canonical class id.
+        $countsById = [];
+        $byId = $this->tenant()->query('EmsStudents');
+        foreach (
+            $byId->select(['class_group_id', 'count' => $byId->func()->count('*')])
+                ->where(['status' => 'enrolled', 'class_group_id IN' => $ids])
+                ->groupBy('class_group_id')
+                ->enableHydration(false)
+                ->all() as $row
+        ) {
+            $countsById[(string)$row['class_group_id']] = (int)$row['count'];
+        }
+
+        // Students not yet linked to an id still count through their class name,
+        // but only when that name maps to exactly one class in this set — so two
+        // arms that share a name never both claim an unlinked student.
+        $countsByName = [];
+        $byName = $this->tenant()->query('EmsStudents');
+        foreach (
+            $byName->select(['class_group', 'count' => $byName->func()->count('*')])
+                ->where([
+                    'status' => 'enrolled',
+                    'class_group_id IS' => null,
+                    'class_group IN' => $names,
+                ])
+                ->groupBy('class_group')
+                ->enableHydration(false)
+                ->all() as $row
+        ) {
+            $countsByName[(string)$row['class_group']] = (int)$row['count'];
         }
 
         $teacherNames = $this->teacherNamesById();
 
         $out = [];
         foreach ($groups as $group) {
+            $count = $countsById[(string)$group->id] ?? 0;
+            if (($nameFreq[(string)$group->name] ?? 0) === 1) {
+                $count += $countsByName[(string)$group->name] ?? 0;
+            }
             $out[] = ClassSerializer::summary(
                 $group,
-                $counts[(string)$group->name] ?? 0,
+                $count,
                 $group->form_teacher_id === null
                     ? null
                     : ($teacherNames[(string)$group->form_teacher_id] ?? null),

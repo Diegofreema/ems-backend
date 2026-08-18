@@ -129,6 +129,12 @@ final class Messages
     // %1$s = class name, %2$s = class level, %3$s = applicant's desired level.
     public const ENROL_LEVEL_MISMATCH = '%1$s is a %2$s class — this applicant applied for %3$s.';
 
+    // --- Book a demo (public lead capture) --------------------------------
+    public const DEMO_INSTITUTION_REQUIRED = 'Enter the name of your institution.';
+    public const DEMO_CONTACT_REQUIRED = 'Enter a contact name.';
+    public const DEMO_EMAIL_INVALID = 'Enter a valid work e-mail address.';
+    public const DEMO_PHONE_REQUIRED = 'Enter a phone number.';
+
     // --- Documents & signed links (§1.7 / §3.8) ---------------------------
     public const DOCUMENT_NOT_FOUND = 'That document could not be found.';
     public const DOCUMENT_NAME_REQUIRED = 'Give the document a name.';
@@ -363,9 +369,12 @@ final class Messages
 
     // --- Class group management (Stage 1 completeness pass) -----------------
     public const CLASS_NAME_REQUIRED = 'Enter the class\'s name.';
+    public const CLASS_LEVEL_REQUIRED = 'Choose the class\'s level.';
+    public const CLASS_ARM_REQUIRED = 'Enter the class arm (for example A, B or C).';
     public const CLASS_EXISTS = 'A class with that name already exists.';
     public const CLASS_IN_USE = 'That class has students or academic history. Move its students first.';
     public const CLASS_MANAGE_FORBIDDEN = 'Only an administrator or registrar can manage classes.';
+    public const STUDENT_CLASS_UNKNOWN = 'That class could not be found.';
 
     // --- Subject allocations + timetable (Stages 2-3) -----------------------
     public const ALLOCATION_EXISTS = 'That subject is already allocated for this class.';

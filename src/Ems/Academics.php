@@ -283,16 +283,21 @@ class Academics
     // --- roster & class computation ----------------------------------------
 
     /**
-     * Enrolled students of a class, matched by class NAME, ordered by surname
-     * then first name (the backend's roster convention, §3.12).
+     * Enrolled students of a class, matched by class id (with a name fallback
+     * for students not yet linked to an id), ordered by surname then first name
+     * (the backend's roster convention, §3.12). Keyed by id so two arms that
+     * share a name never merge into one grade roster.
      *
      * @return array<\Cake\Datasource\EntityInterface>
      */
-    private function rosterFor(string $className): array
+    private function rosterFor(EntityInterface $classGroup): array
     {
         return $this->tenant()->query('EmsStudents')
             ->where([
-                'class_group' => $className,
+                'OR' => [
+                    'class_group_id' => (string)$classGroup->id,
+                    ['class_group_id IS' => null, 'class_group' => (string)$classGroup->name],
+                ],
                 'status' => 'enrolled',
             ])
             ->orderByAsc('last_name')
@@ -361,7 +366,7 @@ class Academics
         $ctx = $this->buildCaContext((string)$exam->id, (string)$classGroup->id, array_values($subjectIdByName));
 
         $rows = [];
-        foreach ($this->rosterFor((string)$classGroup->name) as $student) {
+        foreach ($this->rosterFor($classGroup) as $student) {
             $totals = [];
             $sum = 0.0;
             $counted = 0;
@@ -424,7 +429,7 @@ class Academics
         $ctx = $this->buildCaContext((string)$exam->id, (string)$classGroup->id, [$subjectId]);
         $caFromAssessments = !empty($ctx['has'][$subjectId]);
 
-        $roster = $this->rosterFor((string)$classGroup->name);
+        $roster = $this->rosterFor($classGroup);
         $gradeByStudent = $this->gradesByStudent((string)$exam->id, $subjectId, $roster);
 
         $rows = [];
@@ -499,9 +504,15 @@ class Academics
     {
         $scheme = $this->grading->schemeForExam($exam);
         $bands = $scheme['bands'];
-        $classGroup = $this->tenant()->query('EmsClassGroups')
-            ->where(['name' => (string)$student->class_group])
-            ->first();
+        $classGroupId = (string)($student->class_group_id ?? '');
+        $classGroup = $classGroupId !== ''
+            ? $this->tenant()->query('EmsClassGroups')
+                ->where(['id' => $classGroupId])
+                ->first()
+            : $this->tenant()->query('EmsClassGroups')
+                ->where(['name' => (string)$student->class_group])
+                ->orderByAsc('created')
+                ->first();
 
         $subjects = [];
         $average = null;
