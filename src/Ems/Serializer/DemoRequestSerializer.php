@@ -31,6 +31,33 @@ final class DemoRequestSerializer
         return $out;
     }
 
+    /**
+     * The platform inbox's detail shape: the request, plus `updatedAt` (when a
+     * staffer last moved it) and its full note timeline. `notes` is always
+     * present — an empty array, never omitted — so the shape is total.
+     *
+     * @param array<int, \Cake\Datasource\EntityInterface> $notes Oldest-first.
+     */
+    public static function detail(EntityInterface $r, array $notes): array
+    {
+        $out = self::request($r);
+        $out['updatedAt'] = Wire::datetime($r->modified);
+        $out['notes'] = array_map([self::class, 'note'], array_values($notes));
+
+        return $out;
+    }
+
+    /** One internal note on a demo request (author + body + timestamp). */
+    public static function note(EntityInterface $n): array
+    {
+        return [
+            'id' => (string)$n->id,
+            'authorName' => (string)$n->author_name,
+            'body' => (string)$n->body,
+            'createdAt' => Wire::datetime($n->created),
+        ];
+    }
+
     /** Add a key only when the value is a non-empty string. */
     private static function put(array &$out, string $key, mixed $value): void
     {

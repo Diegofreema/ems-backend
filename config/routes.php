@@ -105,6 +105,18 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
     // Book-a-demo lead capture: a prospect has no school, so this is tenant-less.
     $builder->post('/public/demo-requests', ['controller' => 'DemoRequests', 'action' => 'create']);
 
+    // --- Platform: demo-requests inbox (CRM-lite) — tenant-less, platform staff.
+    // Authenticated (not public); the PLATFORM tier in App\Ems\Policy gates every
+    // action to the platform_staff role. Static /summary before the {id} route.
+    $builder->get('/platform/demo-requests/summary', ['controller' => 'DemoInbox', 'action' => 'summary']);
+    $builder->get('/platform/demo-requests', ['controller' => 'DemoInbox', 'action' => 'index']);
+    $builder->get('/platform/demo-requests/{id}', ['controller' => 'DemoInbox', 'action' => 'view'])
+        ->setPass(['id']);
+    $builder->patch('/platform/demo-requests/{id}/status', ['controller' => 'DemoInbox', 'action' => 'updateStatus'])
+        ->setPass(['id']);
+    $builder->post('/platform/demo-requests/{id}/notes', ['controller' => 'DemoInbox', 'action' => 'addNote'])
+        ->setPass(['id']);
+
     // --- Signed-link redemption (§3.8) ---
     // Tenant-less: the reader is identified from their Bearer token inside the
     // action (the ordered 410/401/403/404 checks live there, not in auth).

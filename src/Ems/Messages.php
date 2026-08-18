@@ -134,6 +134,10 @@ final class Messages
     public const DEMO_CONTACT_REQUIRED = 'Enter a contact name.';
     public const DEMO_EMAIL_INVALID = 'Enter a valid work e-mail address.';
     public const DEMO_PHONE_REQUIRED = 'Enter a phone number.';
+    // Platform inbox (CRM-lite) — authenticated platform-staff surface.
+    public const DEMO_NOT_FOUND = 'That demo request could not be found.';
+    public const DEMO_STATUS_INVALID = 'Choose a valid pipeline stage.';
+    public const DEMO_NOTE_REQUIRED = 'Write a note before saving.';
 
     // --- Documents & signed links (§1.7 / §3.8) ---------------------------
     public const DOCUMENT_NOT_FOUND = 'That document could not be found.';

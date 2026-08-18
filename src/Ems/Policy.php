@@ -52,6 +52,11 @@ final class Policy
         // set as ALL — the self-narrowing lives in the action; the distinct
         // name documents that this is a personal, not a shared, surface.
         'SELF' => ['administrator', 'registrar', 'bursar', 'teacher', 'parent', 'student'],
+        // NetPro platform staff — the cross-tenant operator role, deliberately
+        // disjoint from every school role above. Its only reach is the
+        // tenant-less /platform/* surface (the demo-requests inbox); no school
+        // role may enter it, and it holds no school capability in this table.
+        'PLATFORM' => ['platform_staff'],
     ];
 
     /**
@@ -384,6 +389,15 @@ final class Policy
         'Imports.commit' => 'MANAGE',
         'Imports.discard' => 'MANAGE',
         'Imports.view' => 'MANAGE',
+
+        // --- Platform: demo-requests inbox (CRM-lite) — platform staff only.
+        // Tenant-less (no school_id): reads the same ems_demo_requests rows the
+        // public book-a-demo form writes, plus their internal notes.
+        'DemoInbox.index' => 'PLATFORM',
+        'DemoInbox.summary' => 'PLATFORM',
+        'DemoInbox.view' => 'PLATFORM',
+        'DemoInbox.updateStatus' => 'PLATFORM',
+        'DemoInbox.addNote' => 'PLATFORM',
     ];
 
     /**
