@@ -89,6 +89,7 @@ abstract class EmsIntegrationTestCase extends TestCase
         'ems_students',
         'ems_refresh_tokens',
         'ems_password_resets',
+        'ems_email_verifications',
         'ems_users',
         'ems_schools',
     ];
@@ -115,6 +116,10 @@ abstract class EmsIntegrationTestCase extends TestCase
             'role' => 'administrator',
             'status' => 'active',
             'added_on' => $this->now(),
+            // Mirrors production: every pre-verification account was
+            // backfilled as verified, and invited accounts are stamped at
+            // redemption — only fresh self-registrations start unverified.
+            'email_verified_at' => $this->now(),
         ]);
     }
 
@@ -167,6 +172,7 @@ abstract class EmsIntegrationTestCase extends TestCase
             'role' => $role,
             'status' => 'active',
             'added_on' => $this->now(),
+            'email_verified_at' => $this->now(),
         ]);
     }
 

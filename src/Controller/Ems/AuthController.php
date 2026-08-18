@@ -5,8 +5,10 @@ namespace App\Controller\Ems;
 
 use App\Api\Jwt;
 use App\Ems\Email;
+use App\Ems\EmailVerifications;
 use App\Ems\Invitations;
 use App\Ems\Messages;
+use App\Ems\RateLimited;
 use App\Ems\RateLimiter;
 use App\Ems\RefreshDenied;
 use App\Ems\RefreshTokens;
@@ -39,7 +41,14 @@ class AuthController extends AppController
     protected array $publicActions = [
         'signIn', 'registerSchool', 'inviteLookup', 'inviteAccept',
         'resetRequest', 'resetConfirm', 'refresh', 'logout',
+        'verifyEmail', 'verifyResend',
     ];
+
+    /** Verification e-mails allowed per address per window (register + resends
+     *  combined) before further sends are silently skipped — the inbox already
+     *  holds a live link, and only the newest one works. */
+    private const VERIFY_SEND_LIMIT = 3;
+    private const VERIFY_SEND_WINDOW = 900;
 
     /** Wrong guesses allowed against one reset code before it is dead. */
     private const RESET_MAX_ATTEMPTS = 5;
@@ -102,6 +111,13 @@ class AuthController extends AppController
         }
         if ($user->status === 'disabled') {
             $this->fail(403, Messages::ACCOUNT_DISABLED);
+        }
+        // Self-served registrations must prove their address before first
+        // sign-in. The correct password re-earns a fresh 30-minute link, so a
+        // creator who lost (or outlived) the original e-mail is never stuck.
+        if ($user->email_verified_at === null) {
+            $this->sendVerification($user);
+            $this->fail(403, Messages::EMAIL_UNVERIFIED);
         }
 
         return $this->authResult($user);
@@ -179,10 +195,136 @@ class AuthController extends AppController
                 'status' => 'active',
                 'added_on' => FrozenDate::today(),
                 'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                // Verified only once the mailed link is opened (§3.18). Until
+                // then sign-in is refused and re-sends a fresh link.
+                'email_verified_at' => null,
             ]));
         });
 
+        // No session yet — the creator signs in after opening the mailed link.
+        // Delivery is best-effort: if it fails, the first sign-in attempt
+        // re-sends, so registration itself never bounces on a mail outage.
+        $this->sendVerification($user);
+
+        return $this->json([
+            'verificationRequired' => true,
+            'email' => $email,
+            'message' => Messages::VERIFY_CHECK_INBOX,
+        ]);
+    }
+
+    /**
+     * POST /auth/verify-email { token } — prove the address from the mailed
+     * link. Burns the token, stamps the account verified, sends the welcome
+     * message, and starts the first real session.
+     */
+    public function verifyEmail(): Response
+    {
+        $this->rateLimit('verify_email', 10);
+        $token = trim((string)($this->body()['token'] ?? ''));
+        if ($token === '') {
+            $this->fail(400, Messages::VERIFY_LINK_INVALID);
+        }
+
+        $verifications = $this->fetchTable('EmsEmailVerifications');
+        $row = $verifications->find()
+            ->where([
+                'token' => EmailVerifications::hash($token),
+                'used_at IS' => null,
+                'expires_at >=' => FrozenTime::now(),
+            ])
+            ->first();
+        if ($row === null) {
+            $this->fail(400, Messages::VERIFY_LINK_INVALID);
+        }
+
+        $users = $this->fetchTable('EmsUsers');
+        $user = $users->find()->where(['id' => $row->user_id])->firstOrFail();
+        if ($user->status === 'disabled') {
+            $this->fail(403, Messages::ACCOUNT_DISABLED);
+        }
+
+        $firstVerification = $user->email_verified_at === null;
+        $users->getConnection()->transactional(function () use ($users, $verifications, $user, $row): void {
+            $row->used_at = FrozenTime::now(); // single-use: the link is burned
+            $verifications->saveOrFail($row);
+            if ($user->email_verified_at === null) {
+                $user->email_verified_at = FrozenTime::now();
+                $users->saveOrFail($user);
+            }
+        });
+
+        // The welcome message is a courtesy — never fail the verification
+        // (the account IS verified now) over a mail outage.
+        if ($firstVerification) {
+            try {
+                EmailVerifications::deliverWelcome($user, $this->fetchTable('EmsSchools')->get($user->school_id));
+            } catch (Throwable $e) {
+                Log::error(sprintf(
+                    'EMS welcome delivery failed for user %s: %s',
+                    (string)$user->id,
+                    $e->getMessage(),
+                ));
+            }
+        }
+
         return $this->authResult($user);
+    }
+
+    /**
+     * POST /auth/verify-email/resend { email } — always { sent: true }; never
+     * reveals whether the address exists or its verification state (§3.18).
+     */
+    public function verifyResend(): Response
+    {
+        $this->rateLimit('verify_resend', 5);
+        $email = strtolower(trim((string)($this->body()['email'] ?? '')));
+
+        if ($email !== '') {
+            $user = $this->fetchTable('EmsUsers')->find()
+                ->where(['LOWER(email)' => $email])
+                ->first();
+            if ($user !== null && $user->status === 'active' && $user->email_verified_at === null) {
+                $this->sendVerification($user);
+            }
+        }
+
+        return $this->json(['sent' => true]);
+    }
+
+    /**
+     * Issue a fresh verification link and mail it, best-effort. Per-address
+     * throttled across register/sign-in/resend so a stranger typing someone
+     * else's address cannot flood their inbox; within the budget each send
+     * retires earlier links, so only the newest one works.
+     */
+    private function sendVerification(EntityInterface $user): void
+    {
+        try {
+            RateLimiter::hit(
+                'verify_send',
+                strtolower((string)$user->email),
+                self::VERIFY_SEND_LIMIT,
+                self::VERIFY_SEND_WINDOW,
+            );
+        } catch (RateLimited) {
+            return; // a live link is already in the inbox — do not spam it
+        }
+
+        try {
+            $issued = EmailVerifications::issue($this->fetchTable('EmsEmailVerifications'), (string)$user->id);
+            EmailVerifications::deliver(
+                $user,
+                $this->fetchTable('EmsSchools')->get($user->school_id),
+                $issued['raw'],
+            );
+        } catch (Throwable $e) {
+            Log::error(sprintf(
+                'EMS verification delivery failed for user %s: %s',
+                (string)$user->id,
+                $e->getMessage(),
+            ));
+        }
     }
 
     /**
@@ -214,6 +356,9 @@ class AuthController extends AppController
         $user->status = 'active';
         $user->invite_code = null; // the code is burned
         $user->invite_expires_at = null;
+        // Redeeming a code that was mailed to this address IS the proof of the
+        // mailbox — invited accounts never need a separate verification step.
+        $user->email_verified_at = $user->email_verified_at ?? FrozenTime::now();
         $users->saveOrFail($user);
 
         return $this->authResult($user);
@@ -329,6 +474,9 @@ class AuthController extends AppController
                 $user->invite_code = null;
                 $user->invite_expires_at = null;
             }
+            // The reset code reached this mailbox, which is exactly what
+            // verification proves — stamp it if it was still outstanding.
+            $user->email_verified_at = $user->email_verified_at ?? FrozenTime::now();
             $users->saveOrFail($user);
         });
 

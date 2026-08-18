@@ -9,7 +9,7 @@ This area implements the React product API under `/api/ems`. It translates authe
 | File | Owns |
 |---|---|
 | `AppController.php` | Authentication, viewer resolution, tenant checks, CORS, pagination, errors, and shared engines |
-| `AuthController.php` | Sign in, validated school registration, expiring invitation redemption, password reset, refresh tokens, and logout |
+| `AuthController.php` | Sign in, validated school registration with mandatory e-mail verification (30-minute single-use links, welcome mail, unverified sign-in re-sends), expiring invitation redemption, password reset, refresh tokens, and logout |
 | `StudentsController.php` | Student records, atomic student and guardian admission, class assignment, attendance, and academics |
 | `UsersController.php` | Account invitations, role changes, and tenant checked person links |
 | `ExamsController.php` | Exam lifecycle, papers, grading, result release, and report cards |

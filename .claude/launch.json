@@ -2,9 +2,30 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "ems-frontend",
-      "url": "http://localhost:5173",
-      "port": 5173
+      "name": "ems-backend-local",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DATABASE_URL=mysql://root@localhost/tss?encoding=utf8mb4",
+        "EMS_FRONTEND_URL=http://localhost:5180",
+        "EMS_CORS_ORIGINS=http://localhost:5180",
+        "EMS_COOKIE_SECURE=false",
+        "RESEND_API_KEY=",
+        "php",
+        "bin/cake.php",
+        "server",
+        "-p",
+        "8766"
+      ],
+      "port": 8766
+    },
+    {
+      "name": "ems-frontend-preview",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/mac/Desktop/netpro/ems && npx vite preview --port 5180 --strictPort"
+      ],
+      "port": 5180
     }
   ]
 }

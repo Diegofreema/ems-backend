@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller\Ems;
 
 use App\Ems\Messages;
+use Cake\Core\Configure;
+use Cake\Http\TestSuite\HttpClientTrait;
 use Cake\Utility\Text;
 
 /**
@@ -18,6 +20,21 @@ use Cake\Utility\Text;
  */
 class PolicyEnforcementTest extends EmsIntegrationTestCase
 {
+    use HttpClientTrait;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The invite positive-control delivers e-mail; mock the provider so
+        // the suite never sends real mail (and passes without a live key).
+        Configure::write('Ems.resendApiKey', 'test-resend-key');
+        Configure::write('Ems.emailFrom', 'EMS <noreply@test.school>');
+        $this->mockClientPost(
+            'https://api.resend.com/emails',
+            $this->newClientResponse(200, ['Content-Type: application/json'], '{"id":"message-1"}'),
+        );
+    }
+
     /** A parent's token — self-contained; the account row need not exist. */
     private function authAsParent(): void
     {

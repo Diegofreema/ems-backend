@@ -30,6 +30,9 @@ final class Messages
     public const BAD_CREDENTIALS = 'Incorrect e-mail or password.';
     public const ACCOUNT_INVITED = 'This account has a pending invitation. Redeem your invite code to finish setting up.';
     public const ACCOUNT_DISABLED = 'This account has been disabled. Contact the school administrator.';
+    public const EMAIL_UNVERIFIED = 'Your e-mail address has not been verified yet. We have sent a fresh verification link to your inbox — it expires in 30 minutes.';
+    public const VERIFY_LINK_INVALID = 'That verification link is not valid any more. Sign in with your e-mail and password to receive a fresh one.';
+    public const VERIFY_CHECK_INBOX = 'Almost there — check your inbox for a verification link to activate your account.';
     public const SCHOOL_NAME_REQUIRED = 'The school needs a name.';
     public const SCHOOL_NAME_TAKEN = 'A school with this name is already registered.';
     public const SCHOOL_SHORT_NAME_REQUIRED = 'Give the school a short name.';

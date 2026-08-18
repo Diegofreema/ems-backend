@@ -74,6 +74,10 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
     $builder->post('/auth/invite/accept', ['controller' => 'Auth', 'action' => 'inviteAccept']);
     $builder->post('/auth/reset/request', ['controller' => 'Auth', 'action' => 'resetRequest']);
     $builder->post('/auth/reset/confirm', ['controller' => 'Auth', 'action' => 'resetConfirm']);
+    // E-mail verification for self-served registrations (§3.18): the mailed
+    // 30-minute link proves the address; resend is enumeration-safe.
+    $builder->post('/auth/verify-email', ['controller' => 'Auth', 'action' => 'verifyEmail']);
+    $builder->post('/auth/verify-email/resend', ['controller' => 'Auth', 'action' => 'verifyResend']);
     // Silent re-auth (token-at-rest hardening): reads the httpOnly refresh cookie,
     // rotates it, mints a fresh short-lived access token. logout revokes the family.
     $builder->post('/auth/refresh', ['controller' => 'Auth', 'action' => 'refresh']);

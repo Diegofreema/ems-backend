@@ -5,10 +5,27 @@ namespace App\Test\TestCase\Controller\Ems;
 
 use App\Ems\Invitations;
 use App\Ems\Messages;
+use Cake\Core\Configure;
+use Cake\Http\TestSuite\HttpClientTrait;
 use Cake\Utility\Text;
 
 class OnboardingRepairTest extends EmsIntegrationTestCase
 {
+    use HttpClientTrait;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Invitation and verification flows deliver e-mail; mock the provider
+        // so the suite never sends real mail (and passes without a live key).
+        Configure::write('Ems.resendApiKey', 'test-resend-key');
+        Configure::write('Ems.emailFrom', 'EMS <noreply@test.school>');
+        $this->mockClientPost(
+            'https://api.resend.com/emails',
+            $this->newClientResponse(200, ['Content-Type: application/json'], '{"id":"message-1"}'),
+        );
+    }
+
     protected const CLEANUP_TABLES = [
         'ems_application_reviews',
         'ems_admission_applications',

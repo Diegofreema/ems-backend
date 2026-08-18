@@ -39,6 +39,63 @@ final class Email
     }
 
     /** @return array{text:string,html:string} */
+    public static function verifyEmail(string $school, string $recipient, string $url): array
+    {
+        return self::render(
+            $school,
+            'Confirm your e-mail',
+            'Verify your e-mail address',
+            sprintf('Hello %s,', $recipient),
+            sprintf('Thank you for registering %s on EMS. One step remains: confirm that this address is yours.', $school),
+            self::button($url, 'Verify my e-mail')
+                . '<p style="margin:24px 0 0;color:#4b5563">This secure link expires in 30 minutes. Until the address is verified, the account cannot sign in.</p>',
+            sprintf(
+                "Hello %s,\n\nThank you for registering %s on EMS. One step remains: confirm that this address is yours.\n\nOpen this link within 30 minutes to verify your e-mail:\n%s\n\nUntil the address is verified, the account cannot sign in. If you did not register this school, you can ignore this e-mail.",
+                $recipient,
+                $school,
+                $url,
+            ),
+            'If you did not register this school, you can safely ignore this e-mail — nothing will happen without verification.',
+        );
+    }
+
+    /** @return array{text:string,html:string} */
+    public static function welcome(string $school, string $recipient, string $signInUrl): array
+    {
+        $steps = '<table role="presentation" cellspacing="0" cellpadding="0" style="margin:24px 0 0;width:100%">'
+            . self::welcomeStep('1', 'Set up your calendar', 'Create the academic session and terms your school runs on.')
+            . self::welcomeStep('2', 'Invite your team', 'Bring in administrators, registrars, bursars and teachers from Settings.')
+            . self::welcomeStep('3', 'Enrol your students', 'Admit students one by one, or import your register from a spreadsheet.')
+            . '</table>';
+
+        return self::render(
+            $school,
+            'Account verified',
+            sprintf('Welcome aboard, %s', $recipient),
+            sprintf('Hello %s,', $recipient),
+            sprintf('Your e-mail address is verified and %s is now live on EMS. Everything a school office runs on — admissions, classes, examinations, fees and communication — is ready for you.', $school),
+            self::button($signInUrl, 'Open your dashboard') . $steps,
+            sprintf(
+                "Hello %s,\n\nYour e-mail address is verified and %s is now live on EMS.\n\nHere is how most schools begin:\n\n1. Set up your calendar — create the academic session and terms.\n2. Invite your team — administrators, registrars, bursars and teachers.\n3. Enrol your students — admit them one by one or import a spreadsheet.\n\nSign in any time:\n%s\n\nWe are glad to have %s with us.",
+                $recipient,
+                $school,
+                $signInUrl,
+                $school,
+            ),
+            'You are receiving this message because this address was verified for a school account on EMS.',
+        );
+    }
+
+    /** One numbered row of the welcome e-mail's getting-started list. */
+    private static function welcomeStep(string $number, string $title, string $detail): string
+    {
+        return '<tr><td style="padding:10px 0;vertical-align:top;width:44px"><div style="width:32px;height:32px;border-radius:16px;background:#eef2ff;color:#4f46e5;font-weight:700;text-align:center;line-height:32px">'
+            . self::escape($number) . '</div></td><td style="padding:10px 0 10px 4px"><div style="font-weight:700;color:#111827">'
+            . self::escape($title) . '</div><div style="margin-top:2px;color:#4b5563;font-size:14px;line-height:1.5">'
+            . self::escape($detail) . '</div></td></tr>';
+    }
+
+    /** @return array{text:string,html:string} */
     public static function update(
         string $school,
         string $recipient,
