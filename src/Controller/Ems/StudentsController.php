@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
+use App\Ems\AdmissionNumbers;
+use App\Ems\Enrolments;
+use App\Ems\Imports;
 use App\Ems\Messages;
 use App\Ems\Serializer\StudentSerializer;
 use Cake\Datasource\EntityInterface;
@@ -106,7 +109,7 @@ class StudentsController extends AppController
     public function add(): Response
     {
         $students = $this->fetchTable('EmsStudents');
-        $data = $this->studentData();
+        $data = $this->validatedStudentData();
 
         $student = $students->getConnection()->transactional(function () use ($students, $data) {
             $student = $students->saveOrFail($students->newEntity($data));
@@ -161,7 +164,7 @@ class StudentsController extends AppController
             $guardianInputs,
             $primaryIndex,
         ) {
-            $student = $students->saveOrFail($students->newEntity($this->studentData($studentInput)));
+            $student = $students->saveOrFail($students->newEntity($this->validatedStudentData($studentInput)));
             $this->createEnrolmentIfCurrent($student);
 
             $guardians = $this->fetchTable('EmsGuardians');
@@ -186,7 +189,7 @@ class StudentsController extends AppController
     {
         $students = $this->fetchTable('EmsStudents');
         $student = $this->findStudent($id);
-        $student = $students->patchEntity($student, $this->studentData(), ['validate' => false]);
+        $student = $students->patchEntity($student, $this->validatedStudentData(null, $id), ['validate' => false]);
         $students->saveOrFail($student);
 
         return $this->json(StudentSerializer::one($student));
@@ -267,6 +270,13 @@ class StudentsController extends AppController
         $student = $this->findStudent($id);
         $guardians = $this->fetchTable('EmsGuardians');
         $body = $this->body();
+        if (
+            trim((string)($body['firstName'] ?? '')) === ''
+            || trim((string)($body['lastName'] ?? '')) === ''
+            || trim((string)($body['phone'] ?? '')) === ''
+        ) {
+            $this->fail(422, Messages::GUARDIAN_DETAILS_REQUIRED);
+        }
 
         $existingCount = $this->tenant()->query('EmsGuardians')
             ->where(['student_id' => $student->id])
@@ -357,6 +367,64 @@ class StudentsController extends AppController
     }
 
     /**
+     * StudentInput → validated storage columns (422s instead of 500s on bad
+     * input). A blank admission number auto-allocates the school's next one
+     * on create, and keeps the current one on edit; a supplied number must be
+     * unique within the school.
+     */
+    private function validatedStudentData(?array $body = null, ?string $editId = null): array
+    {
+        $data = $this->studentData($body);
+        if ($data['first_name'] === '' || $data['last_name'] === '') {
+            $this->fail(422, Messages::STUDENT_NAME_REQUIRED);
+        }
+
+        $dob = (string)$data['date_of_birth'];
+        if (!Imports::isRealDate($dob)) {
+            $this->fail(422, Messages::STUDENT_DOB_INVALID);
+        }
+        if ($dob > FrozenDate::today()->format('Y-m-d')) {
+            $this->fail(422, Messages::STUDENT_DOB_FUTURE);
+        }
+
+        $gender = mb_strtolower(trim((string)$data['gender']));
+        if ($gender !== '' && !in_array($gender, ['female', 'male', 'other'], true)) {
+            $this->fail(422, Messages::STUDENT_GENDER_INVALID);
+        }
+        $data['gender'] = $gender;
+
+        $status = mb_strtolower(trim((string)$data['status']));
+        $status = $status === '' ? 'enrolled' : $status;
+        if (!in_array($status, ['enrolled', 'applicant', 'graduated', 'withdrawn'], true)) {
+            $this->fail(422, Messages::STUDENT_STATUS_INVALID);
+        }
+        $data['status'] = $status;
+
+        if (!Imports::isRealDate((string)$data['enrolled_on'])) {
+            $this->fail(422, Messages::STUDENT_ENROLLED_ON_INVALID);
+        }
+
+        $admission = (string)$data['admission_number'];
+        if ($admission === '') {
+            if ($editId !== null) {
+                unset($data['admission_number']);
+            } else {
+                $data['admission_number'] = AdmissionNumbers::next($this->getTableLocator(), $this->viewer->schoolId);
+            }
+        } else {
+            $taken = $this->tenant()->query('EmsStudents')->where(['admission_number' => $admission]);
+            if ($editId !== null) {
+                $taken = $taken->where(['id !=' => $editId]);
+            }
+            if ($taken->count() > 0) {
+                $this->fail(422, Messages::ADMISSION_NUMBER_TAKEN);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
      * StudentInput → storage columns.
      */
     private function studentData(?array $body = null): array
@@ -442,40 +510,7 @@ class StudentsController extends AppController
      */
     private function createEnrolmentIfCurrent(EntityInterface $student): void
     {
-        if ($student->status !== 'enrolled') {
-            return;
-        }
-        $session = $this->tenant()->query('EmsAcademicSessions')
-            ->where(['status' => 'open'])
-            ->orderByDesc('name')
-            ->first();
-        if ($session === null) {
-            return;
-        }
-
-        $className = (string)$student->class_group;
-        $level = $className === '' ? '' : trim(substr($className, 0, -1));
-        $classGroupId = (string)($student->class_group_id ?? '');
-        if ($classGroupId !== '') {
-            $class = $this->tenant()->query('EmsClassGroups')
-                ->where(['id' => $classGroupId])
-                ->first();
-            if ($class !== null) {
-                $className = (string)$class->name;
-                $level = (string)$class->level;
-            }
-        }
-
-        $enrolments = $this->fetchTable('EmsEnrolments');
-        $enrolments->saveOrFail($enrolments->newEntity([
-            'school_id' => $this->viewer->schoolId,
-            'student_id' => (string)$student->id,
-            'session' => (string)$session->name,
-            'class_group' => $className,
-            'level' => $level,
-            'started_on' => FrozenDate::today()->format('Y-m-d'),
-            'status' => 'active',
-        ]));
+        Enrolments::createIfCurrent($this->getTableLocator(), $this->viewer->schoolId, $student);
     }
 
     /**

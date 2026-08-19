@@ -202,6 +202,11 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->put('/users/{id}/link', ['controller' => 'Users', 'action' => 'updateLink'])->setPass(['id']);
         $s->put('/users/{id}/status', ['controller' => 'Users', 'action' => 'updateStatus'])->setPass(['id']);
         $s->delete('/users/{id}/invite', ['controller' => 'Users', 'action' => 'revokeInvite'])->setPass(['id']);
+        $s->post('/users/{id}/invite/resend', ['controller' => 'Users', 'action' => 'resendInvite'])->setPass(['id']);
+
+        // Family portal invites (§3.19) — bulk parent onboarding from guardian records.
+        $s->get('/family-invites/plan', ['controller' => 'FamilyInvites', 'action' => 'plan']);
+        $s->post('/family-invites', ['controller' => 'FamilyInvites', 'action' => 'create']);
 
         // --- Admissions (§3.6) — static segments before {id} ---
         $s->get('/admission-cycles/open', ['controller' => 'Admissions', 'action' => 'openCycle']);
@@ -431,6 +436,7 @@ $routes->prefix('Ems', ['path' => '/api/ems'], function (RouteBuilder $builder) 
         $s->post('/imports', ['controller' => 'Imports', 'action' => 'add']);
         $s->put('/imports/{batchId}/rows/{rowId}/decision', ['controller' => 'Imports', 'action' => 'setDecision'])->setPass(['batchId', 'rowId']);
         $s->post('/imports/{batchId}/skip-flagged', ['controller' => 'Imports', 'action' => 'skipFlagged'])->setPass(['batchId']);
+        $s->post('/imports/{batchId}/accept-flagged', ['controller' => 'Imports', 'action' => 'acceptFlagged'])->setPass(['batchId']);
         $s->post('/imports/{batchId}/commit', ['controller' => 'Imports', 'action' => 'commit'])->setPass(['batchId']);
         $s->post('/imports/{batchId}/discard', ['controller' => 'Imports', 'action' => 'discard'])->setPass(['batchId']);
         $s->get('/imports/{batchId}', ['controller' => 'Imports', 'action' => 'view'])->setPass(['batchId']);

@@ -157,6 +157,11 @@ final class Policy
         'Users.updateLink' => 'ADMIN',
         'Users.updateStatus' => 'ADMIN',
         'Users.revokeInvite' => 'ADMIN',
+        // Family onboarding (§3.19): registrars run it — they own the register.
+        // Staff account creation stays ADMIN via Users.invite.
+        'Users.resendInvite' => 'MANAGE',
+        'FamilyInvites.plan' => 'MANAGE',
+        'FamilyInvites.create' => 'MANAGE',
 
         // --- Admissions (§3.6) — applicant PII is the registry office's ---
         'Admissions.openCycle' => 'ALL',
@@ -386,6 +391,7 @@ final class Policy
         'Imports.add' => 'MANAGE',
         'Imports.setDecision' => 'MANAGE',
         'Imports.skipFlagged' => 'MANAGE',
+        'Imports.acceptFlagged' => 'MANAGE',
         'Imports.commit' => 'MANAGE',
         'Imports.discard' => 'MANAGE',
         'Imports.view' => 'MANAGE',

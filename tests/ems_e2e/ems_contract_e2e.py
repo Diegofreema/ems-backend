@@ -40,6 +40,17 @@ def db(sql):
         raise RuntimeError(f"mysql error: {out.stderr.strip()}\nSQL: {sql}")
     return out.stdout.strip()
 
+_plant_n = [0]
+def plant_invite_code(user_id):
+    """Codes are stored SHA-256 hashed (like production), so the old
+    read-the-column trick yields an unusable hash. The harness owns the DB,
+    so it plants a KNOWN code's hash instead and returns the raw code."""
+    _plant_n[0] += 1
+    raw = f"E2E{_plant_n[0]:02d}-{SUF[-4:]}".upper()
+    db("UPDATE ems_users SET invite_code=SHA2('" + raw + "',256), "
+       "invite_expires_at=DATE_ADD(NOW(), INTERVAL 2 DAY) WHERE id='" + user_id + "'")
+    return raw
+
 def req(method, path, token=None, body=None, query=None, origin=None, raw=False):
     url = BASE + path
     if query:
@@ -77,13 +88,23 @@ def register(name, email, password, school_extra=None):
     """registerSchool takes the contract's nested {school, admin} body. This
     suite legitimately registers ~7 schools, but register is throttled 5/900s;
     reset just that bucket per call so functional coverage isn't throttle-gated.
-    (Register throttling itself is covered by AuthThrottleTest, not here.)"""
+    (Register throttling itself is covered by AuthThrottleTest, not here.)
+
+    Since the e-mail-verification feature, register-school returns
+    {verificationRequired,...} and no session. The harness stamps the account
+    verified straight in MySQL (it owns the DB anyway) and signs in, returning
+    the same {user, school, token} shape the suite always consumed."""
     clear_throttle("*throttle_register_*")
-    school = {"name": name}
+    school = {"name": name, "shortName": "E2E"}
     if school_extra:
         school.update(school_extra)
-    return req("POST", "/auth/register-school",
-               body={"school": school, "admin": {"name": "Root Admin", "email": email, "password": password}})
+    st, h, b = req("POST", "/auth/register-school",
+                   body={"school": school, "admin": {"name": "Root Admin", "email": email, "password": password}})
+    if st in (200, 201) and isinstance(b, dict) and b.get("verificationRequired"):
+        db(f"UPDATE ems_users SET email_verified_at = NOW() WHERE email = '{email}'")
+        clear_throttle("*throttle_signin*")
+        st, h, b = req("POST", "/auth/sign-in", body={"email": email, "password": password})
+    return st, h, b
 
 # ---------------------------------------------------------------------------
 print("=" * 70)
@@ -202,10 +223,14 @@ check("invite dup email -> 422 email exists",
               body={"name": "Dup", "email": admin_email, "role": "registrar"})))
 
 # accept the 2nd admin invite (activate) so the school has two admins
-code2 = db(f"SELECT invite_code FROM ems_users WHERE id='{admin2_id}'") if admin2_id else ""
-check("invite code persisted in ems_users", bool(code2), f"code={code2!r}")
-check("sign-in invited account -> 403 pending",
-      (lambda r: r[0] == 403 and msg(r[2]) == "This account has a pending invitation. Redeem your invite code to finish setting up.")(
+check("invite code persisted (hashed) in ems_users",
+      bool(db(f"SELECT invite_code FROM ems_users WHERE id='{admin2_id}'")) if admin2_id else False)
+code2 = plant_invite_code(admin2_id) if admin2_id else ""
+# An invited account has no password yet, and account state is only revealed
+# AFTER a correct password (anti-enumeration) — so any sign-in attempt gets the
+# same 401 an unknown address gets.
+check("sign-in invited account -> 401 (state not revealed without the password)",
+      (lambda r: r[0] == 401 and msg(r[2]) == "Incorrect e-mail or password.")(
           req("POST", "/auth/sign-in", body={"email": f"admin2.{SUF}@e2e.test", "password": "password123"})))
 check("invite lookup blank -> 422 'Enter your invite code.'",
       (lambda r: r[0] == 422 and msg(r[2]) == "Enter your invite code.")(
@@ -222,7 +247,7 @@ check("accepted admin2 can now sign in",
 # fresh invite (unburned code) to exercise the accept password-min guard
 st, h, b = req("POST", f"/schools/{school_id}/users/invite", token=admin_token,
                body={"name": "PwTest", "email": f"pwtest.{SUF}@e2e.test", "role": "registrar"})
-pwcode = db(f"SELECT invite_code FROM ems_users WHERE id='{b.get('id')}'")
+pwcode = plant_invite_code(b.get("id"))
 check("invite accept short password -> 422 (fresh code)",
       (lambda r: r[0] == 422 and msg(r[2]) == "The password needs at least 8 characters.")(
           req("POST", "/auth/invite/accept", body={"code": pwcode, "password": "abc"})))
@@ -241,8 +266,10 @@ check("disable last active admin -> 422 last-admin",
       (lambda r: r[0] == 422 and msg(r[2]) == "A school needs at least one active administrator.")(
           req("PUT", f"/schools/{school_id}/users/{admin_user_id}/status", token=admin_token,
               body={"status": "disabled"})))
-check("demote last active admin role -> 422 last-admin",
-      (lambda r: r[0] == 422 and msg(r[2]) == "A school needs at least one active administrator.")(
+# Demoting yourself trips the self-role-change guard before the last-admin
+# rule can be consulted (the disable check above covers last-admin).
+check("demote own admin role -> 403 self-change forbidden",
+      (lambda r: r[0] == 403 and msg(r[2]) == "Administrators cannot change their own role.")(
           req("PUT", f"/schools/{school_id}/users/{admin_user_id}/role", token=admin_token,
               body={"role": "registrar"})))
 
@@ -444,7 +471,7 @@ check("student add 201 (enrolled)", st == 201 and s1.get("id"), f"{st} {s1}")
 student1_id = s1.get("id")
 st, h, s2 = add_student("ADM002", "Chidi", "Obi", "JSS 1A")
 student2_id = s2.get("id")
-st, h, s3 = add_student("ADM003", "Ada", "Eze", "JSS 2A", status="prospective")
+st, h, s3 = add_student("ADM003", "Ada", "Eze", "JSS 2A", status="applicant")
 student3_id = s3.get("id")
 # enrolment side-effect: enrolled -> active enrolment, level=JSS 1
 st, h, en = req("GET", f"/schools/{school_id}/students/{student1_id}/enrolments", token=admin_token)
@@ -584,7 +611,7 @@ st, h, b = req("POST", f"/schools/{school_id}/users/invite", token=admin_token,
                body={"name": "Parent Bola", "email": f"parent.{SUF}@e2e.test", "role": "parent",
                      "link": {"kind": "parent", "studentIds": [student1_id]}})
 parent_id = b.get("id")
-pcode = db(f"SELECT invite_code FROM ems_users WHERE id='{parent_id}'")
+pcode = plant_invite_code(parent_id)
 req("POST", "/auth/invite/accept", body={"code": pcode, "password": "password123"})
 ptoken = req("POST", "/auth/sign-in", body={"email": f"parent.{SUF}@e2e.test", "password": "password123"})[2]["token"]
 check("parent reads own ward -> 200",
@@ -602,7 +629,7 @@ st, h, b = req("POST", f"/schools/{school_id}/users/invite", token=admin_token,
                body={"name": "Grace Teacher", "email": f"teacher.{SUF}@e2e.test", "role": "teacher",
                      "link": {"kind": "teacher", "teacherId": teacher1_id}})
 tuid = b.get("id")
-tcode = db(f"SELECT invite_code FROM ems_users WHERE id='{tuid}'")
+tcode = plant_invite_code(tuid)
 req("POST", "/auth/invite/accept", body={"code": tcode, "password": "password123"})
 ttoken = req("POST", "/auth/sign-in", body={"email": f"teacher.{SUF}@e2e.test", "password": "password123"})[2]["token"]
 st, h, b = req("GET", f"/schools/{school_id}/classes", token=ttoken)
@@ -630,6 +657,11 @@ check("foreign-school token on school1 -> 403 (membership gate)",
 import uuid as _uuid2
 def uid2(): return str(_uuid2.uuid4())
 PDF = "data:application/pdf;base64,JVBERi0xLjQKJcOkCg=="
+# The server measures the ACTUAL decoded bytes (the declared sizeBytes field is
+# caller-supplied and ignored), so the size guards need genuinely big/empty bodies.
+import base64 as _b64
+OVERSIZED_PDF = "data:application/pdf;base64," + _b64.b64encode(b"%PDF-1.4" + b"0" * (2 * 1024 * 1024 + 64)).decode()
+EMPTY_PDF = "data:application/pdf;base64,"
 def doc(name="Birth cert", ctype="application/pdf", size=2048, dtype="birth_certificate", body=PDF):
     return {"name": name, "type": dtype, "contentType": ctype, "sizeBytes": size, "body": body}
 def application_input(fn, ln, level="JSS 1", docs=None):
@@ -667,11 +699,11 @@ check("public apply bad file type -> 422",
 check("public apply oversized file -> 413",
       (lambda r: r[0] == 413 and msg(r[2]) == "That file is larger than 2 MB. Please send a smaller copy.")(
           req("POST", f"/public/schools/{school_id}/apply",
-              body=application_input("Big", "File", docs=[doc(size=3 * 1024 * 1024)]))))
+              body=application_input("Big", "File", docs=[doc(body=OVERSIZED_PDF)]))))
 check("public apply empty file -> 422",
       (lambda r: r[0] == 422 and msg(r[2]) == "That file is empty.")(
           req("POST", f"/public/schools/{school_id}/apply",
-              body=application_input("Empty", "File", docs=[doc(size=0)]))))
+              body=application_input("Empty", "File", docs=[doc(body=EMPTY_PDF)]))))
 # a cycle-less school rejects applications
 st, h, nc = register(f"No Cycle {SUF}", f"nocycle.{SUF}@e2e.test", "password123")
 check("public apply with no open cycle -> 422 admissions closed",
@@ -763,8 +795,8 @@ st, h, du = upload("student", student1_id, doc(name="Report card", dtype="report
 check("upload student doc -> 201 pending", st == 201 and du.get("verification") == "pending", f"{st} {du}")
 doc1 = du.get("id")
 check("upload bad type -> 422", upload("student", student1_id, doc(ctype="image/gif"))[0] == 422)
-check("upload oversized -> 413", upload("student", student1_id, doc(size=3 * 1024 * 1024))[0] == 413)
-check("upload empty -> 422", upload("student", student1_id, doc(size=0))[0] == 422)
+check("upload oversized -> 413", upload("student", student1_id, doc(body=OVERSIZED_PDF))[0] == 413)
+check("upload empty -> 422", upload("student", student1_id, doc(body=EMPTY_PDF))[0] == 422)
 check("upload blank name -> 422",
       (lambda r: r[0] == 422 and msg(r[2]) == "Give the document a name.")(upload("student", student1_id, doc(name="  "))))
 check("list student docs (uploadedOn desc)",
@@ -1368,6 +1400,56 @@ st, h, wd = req("POST", f"{S}/students/{student1_id}/withdraw", token=admin_toke
 check("student withdraw 200 status withdrawn", st == 200 and wd.get("status") == "withdrawn")
 st, h, mf = req("POST", f"{S}/teachers/{teacher1_id}/mark-former", token=admin_token)
 check("teacher mark-former 200 status former", st == 200 and mf.get("status") == "former")
+
+sect("family-onboarding")
+# One-file import: the students CSV row creates the student AND its primary
+# guardian AND the enrolment placement (§3.17), numbered from ems_sequences.
+st, h, fcls = req("POST", f"{S}/classes", token=admin_token, body={"level": "JSS 2", "stream": "Z"})
+check("onboarding class created", st == 201, f"status={st} body={fcls}")
+fam_csv = "\n".join([
+    "admission_number,first_name,last_name,date_of_birth,gender,class_group,status,"
+    "guardian_name,guardian_phone,guardian_relationship,guardian_email,enrolled_on",
+    f",Fola,Onboard,2012-03-03,female,JSS 2Z,,Bola Onboard,0803 {SUF[:3]} {SUF[3:]}9,mother,,",
+])
+st, h, prev = req("POST", f"{S}/imports", token=admin_token,
+                  body={"kind": "students", "filename": "family.csv", "text": fam_csv})
+check("combined import staged valid", st == 201 and prev["rows"][0]["check"] == "valid",
+      f"status={st} row={prev['rows'][0] if isinstance(prev, dict) else prev}")
+st, h, done = req("POST", f"{S}/imports/{prev['batch']['id']}/commit", token=admin_token)
+check("combined import commit created 1", st == 200 and done["batch"]["result"]["created"] == 1)
+check("allocated admission number written back into the row",
+      bool(done["rows"][0]["values"].get("admission_number")))
+st, h, studs = req("GET", f"{S}/students", token=admin_token, query={"query": "Fola Onboard"})
+fola = studs["items"][0]
+st, h, gs = req("GET", f"{S}/students/{fola['id']}/guardians", token=admin_token)
+check("import created the primary guardian record",
+      st == 200 and len(gs) == 1 and gs[0]["isPrimary"] is True and gs[0]["relationship"] == "mother")
+st, h, enr = req("GET", f"{S}/students/{fola['id']}/enrolments", token=admin_token)
+check("import created the enrolment placement", st == 200 and len(enr) >= 1)
+
+# Family invites (§3.19): the plan groups families; a no-email guardian gets a
+# one-time code; the code redeems at /join; the phone number signs in.
+st, h, plan = req("GET", f"{S}/family-invites/plan", token=admin_token)
+fam_target = next((t for t in plan.get("targets", []) if t.get("guardianName") == "Bola Onboard"), None)
+check("plan lists the imported family as codeOnly",
+      st == 200 and fam_target is not None and fam_target["status"] == "codeOnly", f"status={st}")
+st, h, res = req("POST", f"{S}/family-invites", token=admin_token,
+                 body={"guardianIds": [fam_target["guardianId"]]})
+fam_r = res["results"][0]
+check("family invite mints a one-time code", st == 201 and fam_r["status"] == "code" and fam_r.get("code"))
+check("family invite over-25 batch -> 422 verbatim",
+      (lambda r: r[0] == 422 and msg(r[2]) == "Send invitations in batches of 25 or fewer.")(
+          req("POST", f"{S}/family-invites", token=admin_token, body={"guardianIds": [uid() for _ in range(26)]})))
+clear_throttle("*throttle_invite_accept_*")
+st, h, acc = req("POST", "/auth/invite/accept", body={"code": fam_r["code"], "password": "FamilyPass1"})
+check("code redeems to a parent session", st == 200 and acc["user"]["role"] == "parent", f"status={st} body={acc}")
+clear_throttle("*throttle_signin*")
+st, h, sin = req("POST", "/auth/sign-in", body={"email": f"0803-{SUF}9", "password": "FamilyPass1"})
+check("phone-number sign-in works for the code-sheet parent",
+      st == 200 and sin["user"]["role"] == "parent", f"status={st} body={sin}")
+st, h, rs = req("POST", f"{S}/users/{fam_r['userId']}/invite/resend", token=admin_token)
+check("resend on the active family account issues a reset code",
+      st == 200 and rs.get("status") == "code")
 
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 70)

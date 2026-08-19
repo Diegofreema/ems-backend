@@ -33,8 +33,10 @@ class Imports
                 ['key' => 'gender', 'required' => true, 'hint' => 'female, male or other.'],
                 ['key' => 'class_group', 'required' => true, 'hint' => 'Must match a class the school already has, for example JSS 1A.'],
                 ['key' => 'status', 'required' => false, 'hint' => 'enrolled, applicant, graduated or withdrawn. Blank means enrolled.'],
-                ['key' => 'guardian_name', 'required' => true, 'hint' => 'The parent or guardian the school contacts first.'],
+                ['key' => 'guardian_name', 'required' => true, 'hint' => 'The parent or guardian the school contacts first. This creates their guardian record too.'],
                 ['key' => 'guardian_phone', 'required' => true, 'hint' => 'Any readable format, for example +234 803 1234567.'],
+                ['key' => 'guardian_relationship', 'required' => false, 'hint' => 'mother, father, guardian, sibling or other. Blank means guardian.'],
+                ['key' => 'guardian_email', 'required' => false, 'hint' => 'Used to invite the guardian to the parent portal.'],
                 ['key' => 'enrolled_on', 'required' => false, 'hint' => 'YYYY-MM-DD. Blank means today.'],
             ],
         ],
@@ -223,7 +225,7 @@ class Imports
         return $cells;
     }
 
-    private static function isRealDate(string $value): bool
+    public static function isRealDate(string $value): bool
     {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
             return false;
@@ -285,6 +287,16 @@ class Imports
         $phone = (string)($values['guardian_phone'] ?? '');
         if ($phone !== '' && strlen(Dedup::phoneKey($phone)) < 7) {
             $issues[] = ['column' => 'guardian_phone', 'message' => 'That does not look like a phone number.'];
+        }
+
+        $rel = (string)($values['guardian_relationship'] ?? '');
+        if ($rel !== '' && !in_array(mb_strtolower($rel), self::RELATIONSHIPS, true)) {
+            $issues[] = ['column' => 'guardian_relationship', 'message' => 'Relationship must be mother, father, guardian, sibling or other.'];
+        }
+
+        $email = (string)($values['guardian_email'] ?? '');
+        if ($email !== '' && !preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
+            $issues[] = ['column' => 'guardian_email', 'message' => 'That does not look like an e-mail address.'];
         }
 
         $enrolledOn = (string)($values['enrolled_on'] ?? '');
@@ -563,17 +575,9 @@ class Imports
 
     public function nextAdmissionNumber(): string
     {
-        $existing = array_map(fn($s) => (string)$s->admission_number, $this->students());
-        $prefix = $existing === [] ? 'ADM' : preg_replace('#/[^/]*$#', '', $existing[0]);
-        $highest = 0;
-        foreach ($existing as $number) {
-            $tail = (int)substr($number, strrpos($number, '/') === false ? 0 : strrpos($number, '/') + 1);
-            if ($tail > $highest) {
-                $highest = $tail;
-            }
-        }
-
-        return $prefix . '/' . str_pad((string)($highest + 1), 4, '0', STR_PAD_LEFT);
+        // The shared ems_sequences generator — the same counter admissions
+        // enrolment uses, so the two paths can never mint the same number.
+        return AdmissionNumbers::next($this->locator, $this->schoolId);
     }
 
     /** @param array<string, string> $values */
@@ -598,7 +602,54 @@ class Imports
         $students->saveOrFail($student);
         $this->studentsCache = null;
 
+        // One file, whole family: the contact columns become a real primary
+        // guardian row (so comms/alerts reach the family), and an enrolled
+        // student gets the same placement history every other path records.
+        $this->createPrimaryGuardianFromRow($student, $values);
+        Enrolments::createIfCurrent($this->locator, $this->schoolId, $student);
+
         return $student;
+    }
+
+    /**
+     * The students-file guardian columns → one primary ems_guardians row.
+     * Skipped when the student already has guardians (merge path keeps the
+     * richer existing records).
+     *
+     * @param array<string, string> $values
+     */
+    private function createPrimaryGuardianFromRow(EntityInterface $student, array $values): void
+    {
+        $name = trim((string)($values['guardian_name'] ?? ''));
+        if ($name === '') {
+            return;
+        }
+        $existing = $this->tenant()->query('EmsGuardians')
+            ->where(['student_id' => (string)$student->id])
+            ->count();
+        if ($existing > 0) {
+            return;
+        }
+
+        // "Mary Jane Okafor" → first "Mary Jane", last "Okafor".
+        $space = strrpos($name, ' ');
+        $first = $space === false ? $name : substr($name, 0, $space);
+        $last = $space === false ? '' : substr($name, $space + 1);
+
+        $rel = mb_strtolower(trim((string)($values['guardian_relationship'] ?? '')));
+        $guardians = $this->locator->get('EmsGuardians');
+        $guardians->saveOrFail($guardians->newEntity([
+            'school_id' => $this->schoolId,
+            'student_id' => (string)$student->id,
+            'first_name' => $first,
+            'last_name' => $last,
+            'relationship' => in_array($rel, self::RELATIONSHIPS, true) ? $rel : 'guardian',
+            'phone' => $values['guardian_phone'] ?? '',
+            'email' => mb_strtolower(trim((string)($values['guardian_email'] ?? ''))),
+            'occupation' => '',
+            'is_primary' => true,
+        ], ['validate' => false]));
+        $this->guardiansCache = null;
     }
 
     /**
@@ -652,6 +703,11 @@ class Imports
         }
         $this->locator->get('EmsStudents')->saveOrFail($existing);
         $this->studentsCache = null;
+
+        // A merged student with NO guardian records yet (e.g. created by an
+        // earlier import that predates guardian creation) gains one from this
+        // file's contact columns; existing guardian rows are never touched.
+        $this->createPrimaryGuardianFromRow($existing, $values);
 
         return $changed;
     }

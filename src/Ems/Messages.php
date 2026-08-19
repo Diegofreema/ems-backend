@@ -113,6 +113,20 @@ final class Messages
     public const STUDENT_GUARDIAN_REQUIRED = 'Add at least one guardian before admitting the student.';
     public const GUARDIAN_DETAILS_REQUIRED = 'Every guardian needs a first name, last name, and phone number.';
 
+    // --- Student input validation (§3.10) ---------------------------------
+    public const STUDENT_NAME_REQUIRED = 'The student needs a first and last name.';
+    public const STUDENT_DOB_INVALID = 'Write the date of birth as YYYY-MM-DD, for example 2012-04-09.';
+    public const STUDENT_DOB_FUTURE = 'The date of birth is in the future.';
+    public const STUDENT_GENDER_INVALID = 'Gender must be female, male or other.';
+    public const STUDENT_STATUS_INVALID = 'Status must be enrolled, applicant, graduated or withdrawn.';
+    public const STUDENT_ENROLLED_ON_INVALID = 'Write the enrolment date as YYYY-MM-DD.';
+    public const ADMISSION_NUMBER_TAKEN = 'A student with this admission number already exists.';
+
+    // --- Family portal invites (§3.19) ------------------------------------
+    public const FAMILY_INVITE_IDS_REQUIRED = 'Choose at least one guardian to invite.';
+    public const FAMILY_INVITE_BATCH_LIMIT = 'Send invitations in batches of 25 or fewer.';
+    public const INVITE_RESEND_UNAVAILABLE = 'This account has no invitation to resend.';
+
     // --- Admissions (§3.6) ------------------------------------------------
     public const APPLICATION_NOT_FOUND = 'That application could not be found.';
     public const ADMISSIONS_CLOSED = 'Admissions are closed at the moment. Please check back later.';

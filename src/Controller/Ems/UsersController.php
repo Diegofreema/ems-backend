@@ -167,6 +167,42 @@ class UsersController extends AppController
     }
 
     /**
+     * POST /users/{id}/invite/resend — re-issue the code with a fresh 48-hour
+     * window. An account with a mailbox gets the link re-sent; one without
+     * gets the raw code back once, for a re-printed code sheet (§3.19). Also
+     * open to ACTIVE family accounts: redeeming the code at /join sets a new
+     * password, which is how a phone-only parent recovers a forgotten one.
+     */
+    public function resendInvite(string $id): Response
+    {
+        $users = $this->fetchTable('EmsUsers');
+        $user = $this->findUser($id);
+        $resettable = in_array((string)$user->role, ['parent', 'student'], true)
+            && $user->status === 'active';
+        if ($user->status !== 'invited' && !$resettable) {
+            $this->fail(422, Messages::INVITE_RESEND_UNAVAILABLE);
+        }
+
+        $issued = Invitations::issue($users);
+        $user->invite_code = $issued['hash'];
+        $user->invite_expires_at = $issued['expiresAt'];
+        $users->saveOrFail($user);
+
+        if ($user->email !== null && (string)$user->email !== '') {
+            try {
+                $school = $this->fetchTable('EmsSchools')->get($this->viewer->schoolId);
+                Invitations::deliver($user, $school, $issued['raw']);
+            } catch (Throwable $e) {
+                $this->fail(503, Messages::INVITE_DELIVERY_FAILED);
+            }
+
+            return $this->json(['status' => 'sent']);
+        }
+
+        return $this->json(['status' => 'code', 'code' => $issued['raw']]);
+    }
+
+    /**
      * DELETE /users/{id}/invite — only a pending invitation can be revoked;
      * revoking removes the row.
      */

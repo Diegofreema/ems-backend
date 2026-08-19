@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller\Ems;
 
 use App\Api\Jwt;
+use App\Ems\Dedup;
 use App\Ems\Email;
 use App\Ems\EmailChanges;
 use App\Ems\EmailVerifications;
@@ -79,7 +80,11 @@ class AuthController extends AppController
     private const DEVICE_COOKIE = 'ems_device';
 
     /**
-     * POST /auth/sign-in { email, password }
+     * POST /auth/sign-in { email, password } — `email` is an identifier: an
+     * e-mail address, or (for family accounts minted from a guardian record,
+     * §3.19) the phone number from their code sheet. Every stored e-mail is
+     * FILTER_VALIDATE_EMAIL-shaped, so a non-e-mail identifier can only ever
+     * be a phone number.
      */
     public function signIn(): Response
     {
@@ -88,9 +93,19 @@ class AuthController extends AppController
         $email = strtolower(trim((string)($body['email'] ?? '')));
         $password = (string)($body['password'] ?? '');
 
-        $user = $email === '' ? null : $this->fetchTable('EmsUsers')->find()
-            ->where(['LOWER(email)' => $email])
-            ->first();
+        $user = null;
+        if ($email !== '') {
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $user = $this->fetchTable('EmsUsers')->find()
+                    ->where(['LOWER(email)' => $email])
+                    ->first();
+            } else {
+                $phoneKey = Dedup::phoneKey($email);
+                $user = strlen($phoneKey) < 7 ? null : $this->fetchTable('EmsUsers')->find()
+                    ->where(['phone_key' => $phoneKey])
+                    ->first();
+            }
+        }
 
         $hash = $user?->password_hash;
         if ($hash === null || !password_verify($password, (string)$hash)) {
@@ -122,7 +137,9 @@ class AuthController extends AppController
         // Self-served registrations must prove their address before first
         // sign-in. The correct password re-earns a fresh 30-minute link, so a
         // creator who lost (or outlived) the original e-mail is never stuck.
-        if ($user->email_verified_at === null) {
+        // A code-sheet family account has no mailbox to verify — its invite
+        // code was the proof of identity.
+        if ($user->email !== null && (string)$user->email !== '' && $user->email_verified_at === null) {
             $this->sendVerification($user);
             $this->fail(403, Messages::EMAIL_UNVERIFIED);
         }
@@ -608,7 +625,10 @@ class AuthController extends AppController
     }
 
     /**
-     * Locate a pending invitation by its (uppercase-normalized) code.
+     * Locate a live invitation (or access-reset) code. Besides pending
+     * invitations, an ACTIVE family account can hold a re-issued code
+     * (§3.19 resend) — redeeming it sets a new password, which is how a
+     * phone-only parent recovers a forgotten one.
      */
     private function findInvite(): EntityInterface
     {
@@ -620,7 +640,7 @@ class AuthController extends AppController
             ->where([
                 'invite_code' => Invitations::hash($code),
                 'invite_expires_at >=' => FrozenTime::now(),
-                'status' => 'invited',
+                'status IN' => ['invited', 'active'],
             ])
             ->first();
         if ($user === null) {

@@ -22,18 +22,25 @@ final class Email
     }
 
     /** @return array{text:string,html:string} */
-    public static function invitation(string $school, string $recipient, string $role, string $url): array
+    public static function invitation(string $school, string $recipient, string $role, string $url, string $context = ''): array
     {
         $role = ucfirst(strtolower($role));
+        $intro = sprintf('%s has invited you to join its portal as a %s.', $school, $role);
+        $textIntro = sprintf('%s has invited you to join its EMS portal as a %s.', $school, $role);
+        if ($context !== '') {
+            // e.g. "for Sam Student (JSS 1A)" — so a parent recognises the mail.
+            $intro .= ' ' . sprintf('This access is for %s.', $context);
+            $textIntro .= ' ' . sprintf('This access is for %s.', $context);
+        }
 
         return self::render(
             $school,
             'You are invited',
             'Your EMS access is ready',
             sprintf('Hello %s,', $recipient),
-            sprintf('%s has invited you to join its portal as a %s.', $school, $role),
+            $intro,
             self::button($url, 'Join the portal') . '<p style="margin:24px 0 0;color:#4b5563">This secure invitation expires in 48 hours.</p>',
-            sprintf("Hello %s,\n\n%s has invited you to join its EMS portal as a %s.\n\nOpen this link within 48 hours:\n%s\n\nIf you were not expecting this invitation, you can ignore this e-mail.", $recipient, $school, $role, $url),
+            sprintf("Hello %s,\n\n%s\n\nOpen this link within 48 hours:\n%s\n\nIf you were not expecting this invitation, you can ignore this e-mail.", $recipient, $textIntro, $url),
             'If you were not expecting this invitation, you can ignore this e-mail.',
         );
     }

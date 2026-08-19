@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Ems;
 
+use App\Ems\AdmissionNumbers;
 use App\Ems\Messages;
 use App\Ems\Serializer\AdmissionSerializer;
 use Cake\Datasource\EntityInterface;
@@ -366,16 +367,10 @@ class AdmissionsController extends AppController
     {
         $students = $this->fetchTable('EmsStudents');
         $guardian = is_array($application->guardian) ? $application->guardian : [];
-        $prefix = $this->admissionPrefix();
-        $number = $this->sequences()->next(
-            $this->viewer->schoolId,
-            'admission',
-            $this->maxAdmissionSuffix(),
-        );
 
         $student = $students->newEntity([
             'school_id' => $this->viewer->schoolId,
-            'admission_number' => sprintf('%s/%04d', $prefix, $number),
+            'admission_number' => AdmissionNumbers::next($this->getTableLocator(), $this->viewer->schoolId),
             'first_name' => (string)$application->first_name,
             'last_name' => (string)$application->last_name,
             'date_of_birth' => $application->date_of_birth,
@@ -473,34 +468,5 @@ class AdmissionsController extends AppController
         }
 
         return count($source);
-    }
-
-    private function admissionPrefix(): string
-    {
-        $existing = $this->tenant()->query('EmsStudents')
-            ->select(['admission_number'])
-            ->orderByAsc('created')
-            ->first();
-        if ($existing !== null && strpos((string)$existing->admission_number, '/') !== false) {
-            return explode('/', (string)$existing->admission_number)[0];
-        }
-        $school = $this->fetchTable('EmsSchools')->find()
-            ->where(['id' => $this->viewer->schoolId])->first();
-        if ($school !== null && (string)$school->short_name !== '') {
-            $letters = strtoupper((string)preg_replace('/[^A-Za-z]/', '', (string)$school->short_name));
-
-            return substr($letters, 0, 3) ?: 'ADM';
-        }
-
-        return 'ADM';
-    }
-
-    private function maxAdmissionSuffix(): int
-    {
-        $row = $this->tenant()->query('EmsStudents')
-            ->select(['m' => 'MAX(CAST(SUBSTRING_INDEX(admission_number, "/", -1) AS UNSIGNED))'])
-            ->first();
-
-        return (int)($row->m ?? 0);
     }
 }

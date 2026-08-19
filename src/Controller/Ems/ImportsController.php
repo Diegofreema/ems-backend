@@ -201,6 +201,32 @@ class ImportsController extends AppController
         return $this->json($count);
     }
 
+    /**
+     * POST /imports/{batchId}/accept-flagged — the bulk counterpart to
+     * skip-flagged: every still-undecided duplicate is imported as a new
+     * person. For a first-time load of a big register the "duplicates" are
+     * mostly namesakes, and settling them one click at a time doesn't scale.
+     */
+    public function acceptFlagged(string $batchId): Response
+    {
+        $batch = $this->findBatch($batchId);
+        if ((string)$batch->status !== 'review') {
+            $this->fail(409, Messages::IMPORT_ALREADY_COMMITTED);
+        }
+        $rowsTable = $this->fetchTable('EmsImportRows');
+        $count = 0;
+        foreach ($this->rowsOf($batchId) as $row) {
+            if ((string)$row->row_check === 'duplicate' && (string)$row->decision === 'undecided') {
+                $row->decision = 'import';
+                $row->merge_target_id = null;
+                $rowsTable->saveOrFail($row);
+                $count++;
+            }
+        }
+
+        return $this->json($count);
+    }
+
     /** POST /imports/{batchId}/commit — write the reviewed batch to the register. */
     public function commit(string $batchId): Response
     {
@@ -338,6 +364,14 @@ class ImportsController extends AppController
                     // Create.
                     if ($kind === 'students') {
                         $student = $engine->createStudent($values);
+                        // Write the allocated number back into the staged row so
+                        // the post-commit results download carries it — that is
+                        // how a school builds a second-pass guardians file when
+                        // it left admission_number blank.
+                        if (($values['admission_number'] ?? '') === '') {
+                            $values['admission_number'] = (string)$student->admission_number;
+                            $row->row_values = $values;
+                        }
                         $this->stampRow($rowsTable, $row, 'created', sprintf('Added as %s.', (string)$student->admission_number), (string)$student->id);
                     } elseif ($kind === 'guardians') {
                         $guardian = $engine->createGuardian($values);

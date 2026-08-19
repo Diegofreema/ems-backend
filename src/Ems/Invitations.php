@@ -42,7 +42,7 @@ final class Invitations
     }
 
     /** Send the one-time invitation link to its account email address. */
-    public static function deliver(EntityInterface $user, EntityInterface $school, string $rawCode): void
+    public static function deliver(EntityInterface $user, EntityInterface $school, string $rawCode, string $context = ''): void
     {
         $base = rtrim((string)Configure::read('Ems.frontendBaseUrl', 'http://localhost:5173'), '/');
         $url = $base . '/join?code=' . rawurlencode($rawCode);
@@ -51,6 +51,7 @@ final class Invitations
             (string)$user->name,
             (string)$user->role,
             $url,
+            $context,
         );
 
         Resend::deliver(
