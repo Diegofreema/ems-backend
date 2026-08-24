@@ -26,12 +26,19 @@ class UsersController extends AppController
     public function index(): Response
     {
         $params = $this->pageParams();
+        $role = trim((string)$this->request->getQuery('role', ''));
+        if ($role !== '' && !in_array($role, self::ROLES, true)) {
+            $this->fail(422, Messages::USER_ROLE_INVALID);
+        }
 
         $query = $this->tenant()->query('EmsUsers');
+        if ($role !== '') {
+            $query->where(['role' => $role]);
+        }
         $total = $query->count();
 
         $rows = $query
-            ->orderByAsc($query->newExpr("FIELD(status, 'active', 'invited', 'disabled')"))
+            ->orderByAsc($query->expr("FIELD(status, 'active', 'invited', 'disabled')"))
             ->orderByAsc('name')
             ->limit($params['pageSize'])
             ->offset(($params['page'] - 1) * $params['pageSize'])

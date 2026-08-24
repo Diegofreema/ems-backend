@@ -235,6 +235,38 @@ class OnboardingRepairTest extends EmsIntegrationTestCase
         $this->assertFalse($this->rowExists('ems_users', ['email' => 'second.teacher.account@test.school']));
     }
 
+    public function testAdministratorCanListAccountsForOneStaffRole(): void
+    {
+        $registrarId = Text::uuid();
+        $this->insertRow('ems_users', [
+            'id' => $registrarId,
+            'school_id' => $this->schoolId,
+            'name' => 'Rita Registrar',
+            'email' => 'rita.list@test.school',
+            'role' => 'registrar',
+            'status' => 'active',
+            'added_on' => '2026-08-01',
+        ]);
+        $this->insertRow('ems_users', [
+            'id' => Text::uuid(),
+            'school_id' => $this->schoolId,
+            'name' => 'Bola Bursar',
+            'email' => 'bola.list@test.school',
+            'role' => 'bursar',
+            'status' => 'active',
+            'added_on' => '2026-08-01',
+        ]);
+
+        $this->authAsAdmin();
+        $this->get($this->schoolPath('/users') . '?role=registrar');
+
+        $this->assertResponseOk();
+        $response = $this->responseJson();
+        $this->assertSame(1, $response['total']);
+        $this->assertSame([$registrarId], array_column($response['items'], 'id'));
+        $this->assertSame(['registrar'], array_unique(array_column($response['items'], 'role')));
+    }
+
     public function testParentInvitationRequiresAnEnrolledTenantStudent(): void
     {
         $this->authAsAdmin();
