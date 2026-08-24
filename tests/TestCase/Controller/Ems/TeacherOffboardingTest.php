@@ -39,24 +39,37 @@ final class TeacherOffboardingTest extends EmsIntegrationTestCase
         $this->assertTrue($this->rowExists('ems_users', ['id' => $userId, 'status' => 'disabled']));
     }
 
+    public function testFormerTeacherCanBeRelinkedBeforeTheirAccountIsReactivated(): void
+    {
+        [$formerTeacherId, $userId] = $this->seedLinkedTeacher();
+        $replacementTeacherId = $this->seedTeacher('STF-9002', 'Replacement', 'Teacher');
+
+        $this->authAsAdmin();
+        $this->post($this->schoolPath('/teachers/' . $formerTeacherId . '/mark-former'));
+        $this->assertResponseOk();
+
+        $this->authAsAdmin();
+        $this->put($this->schoolPath('/users/' . $userId . '/link'), [
+            'link' => ['kind' => 'teacher', 'teacherId' => $replacementTeacherId],
+        ]);
+        $this->assertResponseOk();
+
+        $this->authAsAdmin();
+        $this->put($this->schoolPath('/users/' . $userId . '/status'), ['status' => 'active']);
+
+        $this->assertResponseOk();
+        $this->assertTrue($this->rowExists('ems_users', [
+            'id' => $userId,
+            'status' => 'active',
+            'link_teacher_id' => $replacementTeacherId,
+        ]));
+    }
+
     /** @return array{string,string} */
     private function seedLinkedTeacher(): array
     {
-        $teacherId = Text::uuid();
+        $teacherId = $this->seedTeacher('STF-9001', 'Tosin', 'Teacher');
         $userId = Text::uuid();
-        $this->insertRow('ems_teachers', [
-            'id' => $teacherId,
-            'school_id' => $this->schoolId,
-            'staff_number' => 'STF-9001',
-            'first_name' => 'Tosin',
-            'last_name' => 'Teacher',
-            'email' => 'tosin.teacher@test.school',
-            'phone' => '08030000000',
-            'gender' => 'female',
-            'subjects' => json_encode([]),
-            'status' => 'active',
-            'hired_on' => '2026-08-01',
-        ]);
         $this->insertRow('ems_users', [
             'id' => $userId,
             'school_id' => $this->schoolId,
@@ -70,5 +83,25 @@ final class TeacherOffboardingTest extends EmsIntegrationTestCase
         ]);
 
         return [$teacherId, $userId];
+    }
+
+    private function seedTeacher(string $staffNumber, string $firstName, string $lastName): string
+    {
+        $teacherId = Text::uuid();
+        $this->insertRow('ems_teachers', [
+            'id' => $teacherId,
+            'school_id' => $this->schoolId,
+            'staff_number' => $staffNumber,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => strtolower($firstName . '.' . $lastName) . '@test.school',
+            'phone' => '08030000000',
+            'gender' => 'female',
+            'subjects' => json_encode([]),
+            'status' => 'active',
+            'hired_on' => '2026-08-01',
+        ]);
+
+        return $teacherId;
     }
 }

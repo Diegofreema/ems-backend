@@ -164,6 +164,52 @@ class OnboardingRepairTest extends EmsIntegrationTestCase
         $this->assertTrue($this->rowExists('ems_users', ['id' => $userId, 'role' => 'registrar']));
     }
 
+    public function testAdministratorCanChangeStaffAccountToTeacherWithAnActiveTeacherLink(): void
+    {
+        $teacherId = $this->seedTeacher();
+        $userId = Text::uuid();
+        $this->insertRow('ems_users', [
+            'id' => $userId,
+            'school_id' => $this->schoolId,
+            'name' => 'Bola Bursar',
+            'email' => 'bola.bursar@test.school',
+            'role' => 'bursar',
+            'status' => 'active',
+            'added_on' => '2026-08-01',
+        ]);
+
+        $this->authAsAdmin();
+        $this->put($this->schoolPath('/users/' . $userId . '/role'), [
+            'role' => 'teacher',
+            'link' => ['kind' => 'teacher', 'teacherId' => $teacherId],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertSame('teacher', $this->responseJson()['role']);
+        $this->assertSame(['kind' => 'teacher', 'teacherId' => $teacherId], $this->responseJson()['link']);
+    }
+
+    public function testUnlinkedTeacherCannotBeReactivated(): void
+    {
+        $userId = Text::uuid();
+        $this->insertRow('ems_users', [
+            'id' => $userId,
+            'school_id' => $this->schoolId,
+            'name' => 'Disabled Teacher',
+            'email' => 'disabled.teacher@test.school',
+            'role' => 'teacher',
+            'status' => 'disabled',
+            'added_on' => '2026-08-01',
+        ]);
+
+        $this->authAsAdmin();
+        $this->put($this->schoolPath('/users/' . $userId . '/status'), ['status' => 'active']);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::USER_LINK_REQUIRED, $this->responseJson()['message']);
+        $this->assertTrue($this->rowExists('ems_users', ['id' => $userId, 'status' => 'disabled']));
+    }
+
     public function testTeacherRecordCannotBeLinkedToMoreThanOneAccount(): void
     {
         $teacherId = $this->seedTeacher();
@@ -235,6 +281,33 @@ class OnboardingRepairTest extends EmsIntegrationTestCase
             'id' => $parentId,
             'link_kind IS' => null,
             'link_student_ids IS' => null,
+        ]));
+    }
+
+    public function testAdministratorCannotClearAStudentAccountLink(): void
+    {
+        $studentId = $this->seedStudent('ADM-STUDENT-1', 'Student');
+        $userId = Text::uuid();
+        $this->insertRow('ems_users', [
+            'id' => $userId,
+            'school_id' => $this->schoolId,
+            'name' => 'Student Account',
+            'email' => 'student.account@test.school',
+            'role' => 'student',
+            'status' => 'active',
+            'added_on' => '2026-08-11',
+            'link_kind' => 'student',
+            'link_student_id' => $studentId,
+        ]);
+
+        $this->authAsAdmin();
+        $this->put($this->schoolPath('/users/' . $userId . '/link'), ['link' => null]);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::USER_LINK_REQUIRED, $this->responseJson()['message']);
+        $this->assertTrue($this->rowExists('ems_users', [
+            'id' => $userId,
+            'link_student_id' => $studentId,
         ]));
     }
 

@@ -299,7 +299,7 @@ class UsersController extends AppController
         if ($role === 'teacher' && $link === null) {
             $this->fail(422, Messages::USER_LINK_REQUIRED);
         }
-        if (in_array($role, ['parent', 'student'], true) && $link === null && !$required) {
+        if ($role === 'parent' && $link === null && !$required) {
             return $columns;
         }
         if (!is_array($link) || ($link['kind'] ?? null) !== $role) {

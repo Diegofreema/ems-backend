@@ -2,7 +2,6 @@
 declare(strict_types=1);
 
 use Migrations\BaseMigration;
-use RuntimeException;
 
 /**
  * A staff directory record represents one teacher identity, so it may back
