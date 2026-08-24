@@ -114,13 +114,13 @@ class PolicyEnforcementTest extends EmsIntegrationTestCase
         // request reaches the action and creates the invited user.
         $this->authAsAdmin();
         $this->post($this->schoolPath('/users/invite'), [
-            'name' => 'New Teacher',
-            'email' => 'new.teacher@test.school',
-            'role' => 'teacher',
+            'name' => 'New Registrar',
+            'email' => 'new.registrar@test.school',
+            'role' => 'registrar',
         ]);
 
         $this->assertResponseOk();
-        $this->assertTrue($this->rowExists('ems_users', ['email' => 'new.teacher@test.school']));
+        $this->assertTrue($this->rowExists('ems_users', ['email' => 'new.registrar@test.school']));
     }
 
     public function testAdministratorCannotInvitePlatformStaff(): void

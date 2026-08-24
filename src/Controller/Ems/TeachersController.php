@@ -141,8 +141,11 @@ class TeachersController extends AppController
         if ($teacher === null) {
             $this->fail(404, Messages::TEACHER_NOT_FOUND);
         }
-        $teacher->status = 'former';
-        $teachers->saveOrFail($teacher);
+        $teachers->getConnection()->transactional(function () use ($teachers, $teacher): void {
+            $teacher->status = 'former';
+            $teachers->saveOrFail($teacher);
+            $this->disableLinkedTeacherAccounts((string)$teacher->id);
+        });
 
         return $this->json(TeacherSerializer::one($teacher));
     }
@@ -162,7 +165,10 @@ class TeachersController extends AppController
                 'EmsTimetableSlots' => 'teacher_id',
                 'EmsClassGroups' => 'form_teacher_id',
             ], Messages::TEACHER_HAS_RECORDS);
-            $teachers->deleteOrFail($teacher);
+            $teachers->getConnection()->transactional(function () use ($teachers, $teacher, $id): void {
+                $this->disableLinkedTeacherAccounts($id);
+                $teachers->deleteOrFail($teacher);
+            });
         }
 
         return $this->json(null, 204);
@@ -234,6 +240,19 @@ class TeachersController extends AppController
     private function findTeacher(string $id): EntityInterface
     {
         return $this->findOr404('EmsTeachers', $id, Messages::TEACHER_NOT_FOUND);
+    }
+
+    /** Disable every historical account linked to this teacher record. */
+    private function disableLinkedTeacherAccounts(string $teacherId): void
+    {
+        $this->fetchTable('EmsUsers')->updateAll(
+            ['status' => 'disabled'],
+            [
+                'school_id' => $this->viewer->schoolId,
+                'role' => 'teacher',
+                'link_teacher_id' => $teacherId,
+            ],
+        );
     }
 
     /**

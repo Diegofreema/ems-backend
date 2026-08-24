@@ -113,7 +113,8 @@ class UsersController extends AppController
     {
         $users = $this->fetchTable('EmsUsers');
         $user = $this->findUser($id);
-        $role = (string)($this->body()['role'] ?? '');
+        $body = $this->body();
+        $role = (string)($body['role'] ?? '');
         if ($user->id === $this->viewer->userId) {
             $this->fail(403, Messages::SELF_ROLE_CHANGE_FORBIDDEN);
         }
@@ -129,9 +130,19 @@ class UsersController extends AppController
             $this->fail(422, Messages::LAST_ADMIN);
         }
 
-        $user = $users->patchEntity($user, ['role' => $role] + [
-            'link_kind' => $role === 'teacher' ? $user->link_kind : null,
-            'link_teacher_id' => $role === 'teacher' ? $user->link_teacher_id : null,
+        $linkColumns = $role === 'teacher'
+            ? $this->validatedLinkColumns(
+                'teacher',
+                $body['link'] ?? $this->teacherLink($user),
+                $id,
+            )
+            : [
+                'link_kind' => null,
+                'link_teacher_id' => null,
+                'link_student_id' => null,
+                'link_student_ids' => null,
+            ];
+        $user = $users->patchEntity($user, ['role' => $role] + $linkColumns + [
             'link_student_id' => null,
             'link_student_ids' => null,
         ], ['validate' => false]);
@@ -163,6 +174,10 @@ class UsersController extends AppController
         $status = (string)($this->body()['status'] ?? '');
         if (!in_array($status, ['active', 'disabled'], true)) {
             $this->fail(422, Messages::ACTION_FORBIDDEN);
+        }
+
+        if ($status === 'active' && $user->role === 'teacher') {
+            $this->validatedLinkColumns('teacher', $this->teacherLink($user), $id);
         }
 
         if (
@@ -282,7 +297,7 @@ class UsersController extends AppController
             return $columns;
         }
         if ($role === 'teacher' && $link === null) {
-            return $columns;
+            $this->fail(422, Messages::USER_LINK_REQUIRED);
         }
         if (in_array($role, ['parent', 'student'], true) && $link === null && !$required) {
             return $columns;
@@ -298,6 +313,16 @@ class UsersController extends AppController
                 ->count();
             if ($teacherId === '' || !$teacherExists) {
                 $this->fail(422, Messages::USER_LINK_INVALID);
+            }
+            $existing = $this->tenant()->query('EmsUsers')->where([
+                'role' => 'teacher',
+                'link_teacher_id' => $teacherId,
+            ]);
+            if ($userId !== null) {
+                $existing->where(['id !=' => $userId]);
+            }
+            if ($existing->count() > 0) {
+                $this->fail(422, Messages::TEACHER_ACCOUNT_EXISTS);
             }
             $columns['link_kind'] = 'teacher';
             $columns['link_teacher_id'] = $teacherId;
@@ -341,5 +366,12 @@ class UsersController extends AppController
         }
 
         return $columns;
+    }
+
+    private function teacherLink(EntityInterface $user): ?array
+    {
+        $teacherId = trim((string)$user->link_teacher_id);
+
+        return $teacherId === '' ? null : ['kind' => 'teacher', 'teacherId' => $teacherId];
     }
 }

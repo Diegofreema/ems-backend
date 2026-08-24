@@ -33,6 +33,7 @@ class OnboardingRepairTest extends EmsIntegrationTestCase
         'ems_guardians',
         'ems_enrolments',
         'ems_students',
+        'ems_teachers',
         'ems_sequences',
         'ems_class_groups',
         'ems_academic_sessions',
@@ -60,11 +61,13 @@ class OnboardingRepairTest extends EmsIntegrationTestCase
 
     public function testInvitationIsHashedExpiringAndRedeemable(): void
     {
+        $teacherId = $this->seedTeacher();
         $this->authAsAdmin();
         $this->post($this->schoolPath('/users/invite'), [
             'name' => 'Tola Teacher',
             'email' => 'tola.teacher@test.school',
             'role' => 'teacher',
+            'link' => ['kind' => 'teacher', 'teacherId' => $teacherId],
         ]);
 
         $this->assertResponseCode(201);
@@ -92,9 +95,98 @@ class OnboardingRepairTest extends EmsIntegrationTestCase
         $this->assertTrue($this->rowExists('ems_users', [
             'id' => $row['id'],
             'status' => 'active',
+            'link_teacher_id' => $teacherId,
             'invite_code IS' => null,
             'invite_expires_at IS' => null,
         ]));
+    }
+
+    public function testTeacherInvitationRequiresAnActiveTeacherRecord(): void
+    {
+        $this->authAsAdmin();
+        $this->post($this->schoolPath('/users/invite'), [
+            'name' => 'Unlinked Teacher',
+            'email' => 'unlinked.teacher@test.school',
+            'role' => 'teacher',
+        ]);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::USER_LINK_REQUIRED, $this->responseJson()['message']);
+        $this->assertFalse($this->rowExists('ems_users', ['email' => 'unlinked.teacher@test.school']));
+    }
+
+    public function testAdministratorCanRepairAnUnlinkedTeacherAccount(): void
+    {
+        $teacherId = $this->seedTeacher();
+        $userId = Text::uuid();
+        $this->insertRow('ems_users', [
+            'id' => $userId,
+            'school_id' => $this->schoolId,
+            'name' => 'Existing Teacher',
+            'email' => 'existing.teacher@test.school',
+            'role' => 'teacher',
+            'status' => 'active',
+            'added_on' => '2026-08-01',
+        ]);
+
+        $this->authAsAdmin();
+        $this->put($this->schoolPath('/users/' . $userId . '/link'), [
+            'link' => ['kind' => 'teacher', 'teacherId' => $teacherId],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertSame(['kind' => 'teacher', 'teacherId' => $teacherId], $this->responseJson()['link']);
+        $this->assertTrue($this->rowExists('ems_users', [
+            'id' => $userId,
+            'link_kind' => 'teacher',
+            'link_teacher_id' => $teacherId,
+        ]));
+    }
+
+    public function testAdministratorCannotChangeAnUnlinkedStaffAccountToTeacher(): void
+    {
+        $userId = Text::uuid();
+        $this->insertRow('ems_users', [
+            'id' => $userId,
+            'school_id' => $this->schoolId,
+            'name' => 'Rita Registrar',
+            'email' => 'rita.registrar@test.school',
+            'role' => 'registrar',
+            'status' => 'active',
+            'added_on' => '2026-08-01',
+        ]);
+
+        $this->authAsAdmin();
+        $this->put($this->schoolPath('/users/' . $userId . '/role'), ['role' => 'teacher']);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::USER_LINK_REQUIRED, $this->responseJson()['message']);
+        $this->assertTrue($this->rowExists('ems_users', ['id' => $userId, 'role' => 'registrar']));
+    }
+
+    public function testTeacherRecordCannotBeLinkedToMoreThanOneAccount(): void
+    {
+        $teacherId = $this->seedTeacher();
+        $this->authAsAdmin();
+        $this->post($this->schoolPath('/users/invite'), [
+            'name' => 'First Teacher Account',
+            'email' => 'first.teacher.account@test.school',
+            'role' => 'teacher',
+            'link' => ['kind' => 'teacher', 'teacherId' => $teacherId],
+        ]);
+        $this->assertResponseCode(201);
+
+        $this->authAsAdmin();
+        $this->post($this->schoolPath('/users/invite'), [
+            'name' => 'Second Teacher Account',
+            'email' => 'second.teacher.account@test.school',
+            'role' => 'teacher',
+            'link' => ['kind' => 'teacher', 'teacherId' => $teacherId],
+        ]);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::TEACHER_ACCOUNT_EXISTS, $this->responseJson()['message']);
+        $this->assertFalse($this->rowExists('ems_users', ['email' => 'second.teacher.account@test.school']));
     }
 
     public function testParentInvitationRequiresAnEnrolledTenantStudent(): void
@@ -298,6 +390,26 @@ class OnboardingRepairTest extends EmsIntegrationTestCase
             'guardian_name' => '',
             'guardian_phone' => '',
             'enrolled_on' => '2026-08-11',
+        ]);
+
+        return $id;
+    }
+
+    private function seedTeacher(): string
+    {
+        $id = Text::uuid();
+        $this->insertRow('ems_teachers', [
+            'id' => $id,
+            'school_id' => $this->schoolId,
+            'staff_number' => 'STF-1001',
+            'first_name' => 'Tola',
+            'last_name' => 'Teacher',
+            'email' => 'tola.teacher@test.school',
+            'phone' => '08030000000',
+            'gender' => 'female',
+            'subjects' => json_encode([]),
+            'status' => 'active',
+            'hired_on' => '2026-08-01',
         ]);
 
         return $id;

@@ -27,6 +27,12 @@ class InviteDeliveryTest extends EmsIntegrationTestCase
 {
     use HttpClientTrait;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Configure::write('Ems.resendApiKey', '');
+    }
+
     /** Set a key and stub the Resend HTTP endpoint so a send succeeds. */
     private function mockSuccessfulDelivery(): void
     {
@@ -42,9 +48,9 @@ class InviteDeliveryTest extends EmsIntegrationTestCase
     {
         $this->authAsAdmin();
         $this->post($this->schoolPath('/users/invite'), [
-            'name' => 'Tunde Teacher',
-            'email' => 'tunde.teacher@test.school',
-            'role' => 'teacher',
+            'name' => 'Tunde Registrar',
+            'email' => 'tunde.registrar@test.school',
+            'role' => 'registrar',
         ]);
 
         // The account is created (201), not rolled back.
@@ -53,10 +59,10 @@ class InviteDeliveryTest extends EmsIntegrationTestCase
         $this->assertSame('failed', $body['delivery']['status']);
         $this->assertNotEmpty($body['delivery']['code']);
         // The persisted user object still comes back intact.
-        $this->assertSame('tunde.teacher@test.school', $body['email']);
+        $this->assertSame('tunde.registrar@test.school', $body['email']);
         $this->assertSame('invited', $body['status']);
         $this->assertSame(1, $this->rowCount('ems_users', [
-            'email' => 'tunde.teacher@test.school',
+            'email' => 'tunde.registrar@test.school',
             'status' => 'invited',
         ]));
     }
@@ -107,9 +113,9 @@ class InviteDeliveryTest extends EmsIntegrationTestCase
         $this->mockSuccessfulDelivery();
         $this->authAsAdmin();
         $this->post($this->schoolPath('/users/invite'), [
-            'name' => 'Kemi Teacher',
-            'email' => 'kemi.teacher@test.school',
-            'role' => 'teacher',
+            'name' => 'Kemi Registrar',
+            'email' => 'kemi.registrar@test.school',
+            'role' => 'registrar',
         ]);
         $userId = (string)$this->responseJson()['id'];
 

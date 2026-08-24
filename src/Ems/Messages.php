@@ -109,6 +109,7 @@ final class Messages
     public const USER_LINK_REQUIRED = 'Choose the school record this account belongs to.';
     public const USER_LINK_INVALID = 'That account link does not match the selected role.';
     public const USER_LINK_TARGET_INVALID = 'Choose an enrolled student from this school.';
+    public const TEACHER_ACCOUNT_EXISTS = 'That staff record is already linked to another account.';
     public const STUDENT_ACCOUNT_EXISTS = 'That student already has a portal account.';
     public const STUDENT_GUARDIAN_REQUIRED = 'Add at least one guardian before admitting the student.';
     public const GUARDIAN_DETAILS_REQUIRED = 'Every guardian needs a first name, last name, and phone number.';
