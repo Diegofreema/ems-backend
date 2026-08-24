@@ -9,6 +9,7 @@ use App\Ems\Serializer\SettingsSerializer;
 use Cake\Datasource\EntityInterface;
 use Cake\Http\Response;
 use Cake\I18n\FrozenDate;
+use Cake\Log\Log;
 use Throwable;
 
 /**
@@ -83,15 +84,26 @@ class UsersController extends AppController
 
         $user = $users->saveOrFail($users->newEntity($data));
 
+        // Onboarding must never dead-end on e-mail. If delivery fails we keep
+        // the invited account and hand the raw code back once, exactly as a
+        // family invite does (§3.19) — the admin can share it or press Resend,
+        // and the real Resend error is logged so the cause is one grep away
+        // instead of a swallowed 503.
+        $delivery = ['status' => 'sent'];
         try {
             $school = $this->fetchTable('EmsSchools')->get($this->viewer->schoolId);
             Invitations::deliver($user, $school, $issued['raw']);
         } catch (Throwable $e) {
-            $users->delete($user);
-            $this->fail(503, Messages::INVITE_DELIVERY_FAILED);
+            Log::error(sprintf(
+                'EMS invite delivery failed for user %s <%s>: %s',
+                (string)$user->id,
+                (string)$user->email,
+                $e->getMessage(),
+            ));
+            $delivery = ['status' => 'failed', 'code' => $issued['raw']];
         }
 
-        return $this->json(SettingsSerializer::user($user), 201);
+        return $this->json(['delivery' => $delivery] + SettingsSerializer::user($user), 201);
     }
 
     /**
@@ -193,7 +205,17 @@ class UsersController extends AppController
                 $school = $this->fetchTable('EmsSchools')->get($this->viewer->schoolId);
                 Invitations::deliver($user, $school, $issued['raw']);
             } catch (Throwable $e) {
-                $this->fail(503, Messages::INVITE_DELIVERY_FAILED);
+                // The fresh code is already saved, so a delivery failure is not
+                // a dead end: return the code so the admin can hand it over,
+                // and log the real reason rather than a bare 503.
+                Log::error(sprintf(
+                    'EMS invite resend delivery failed for user %s <%s>: %s',
+                    (string)$user->id,
+                    (string)$user->email,
+                    $e->getMessage(),
+                ));
+
+                return $this->json(['status' => 'failed', 'code' => $issued['raw']]);
             }
 
             return $this->json(['status' => 'sent']);

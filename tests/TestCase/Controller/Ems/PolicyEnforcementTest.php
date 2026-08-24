@@ -123,6 +123,23 @@ class PolicyEnforcementTest extends EmsIntegrationTestCase
         $this->assertTrue($this->rowExists('ems_users', ['email' => 'new.teacher@test.school']));
     }
 
+    public function testAdministratorCannotInvitePlatformStaff(): void
+    {
+        // platform_staff is a vendor-operator role that belongs to no tenant, so
+        // even an administrator cannot mint one through a school invite. The role
+        // is not in UsersController::ROLES, so the action rejects it with 422.
+        $this->authAsAdmin();
+        $this->post($this->schoolPath('/users/invite'), [
+            'name' => 'Vendor Operator',
+            'email' => 'operator@test.school',
+            'role' => 'platform_staff',
+        ]);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(Messages::USER_ROLE_INVALID, $this->responseJson()['message']);
+        $this->assertFalse($this->rowExists('ems_users', ['email' => 'operator@test.school']));
+    }
+
     public function testAdministratorCannotChangeTheirOwnRole(): void
     {
         $this->authAsAdmin();
